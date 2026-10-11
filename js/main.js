@@ -11,6 +11,7 @@ import { createView } from './views.js';
 import { parseRoute, navStack, TABS, goTab } from './nav.js';
 import { markPlaying } from './rows.js';
 import { lib } from './lib.js';
+import { mountInstall } from './install.js';
 
 const LOGO = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="9" y="12" width="22" height="5" rx="2.5" fill="#fff" opacity=".55"/><rect x="9" y="21.5" width="30" height="5" rx="2.5" fill="#fff"/><rect x="9" y="31" width="17" height="5" rx="2.5" fill="#fff" opacity=".55"/></svg>';
 
@@ -80,6 +81,7 @@ function showSetup(err) {
     <div class="logo">${LOGO}</div>
     <h1>Lumen</h1>
     <p>A cleaner, glassy skin for your Spotify — with glowing synced lyrics.</p>
+    <div class="install-slot"></div>
     ${err ? `<div class="setup-error">${esc(err)}</div>` : ''}
     ${insecure ? '<div class="setup-error">Open Lumen from its https address (GitHub Pages) — Spotify sign-in needs a secure page.</div>' : ''}
     <div class="${builtIn ? 'hidden' : ''}">
@@ -95,6 +97,7 @@ function showSetup(err) {
     <button class="primary-btn" id="connect">Connect Spotify</button>
     <button class="ghost-btn" id="demo">Try the demo first</button>
   </div>`;
+  mountInstall($('.install-slot', s));
   const cid = $('#cid', s), connect = $('#connect', s);
   const check = () => { connect.disabled = cid.value.trim().length < 20; };
   check();

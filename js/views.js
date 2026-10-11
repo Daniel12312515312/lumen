@@ -7,6 +7,7 @@ import { lib } from './lib.js';
 import { trackRow, itemRow, card, itemArt, markPlaying } from './rows.js';
 import { trackActions, settingsSheet } from './sheets.js';
 import { toast } from './ui.js';
+import { mountInstall } from './install.js';
 
 export function createView(r) {
   switch (r.type) {
@@ -67,10 +68,12 @@ function homeView() {
   const v = el(`<div class="view home">
     <header class="page-head"><div><div class="eyebrow">${esc(date)}</div><h1 class="page-title">${greeting()}</h1></div>
       <button class="avatar" aria-label="Settings">${icon('settings')}</button></header>
+    <div class="install-slot"></div>
     <div class="home-body"><div class="shortcuts">${'<div class="shortcut sk"></div>'.repeat(8)}</div>
       <div class="sec-h"><h2>Recently played</h2></div>${skCards(4)}</div></div>`);
   const body = $('.home-body', v);
   const avatar = $('.avatar', v);
+  mountInstall($('.install-slot', v));
   avatar.onclick = () => settingsSheet();
   let data = null, loadedAt = 0;
 
