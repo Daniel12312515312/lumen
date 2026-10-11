@@ -7,6 +7,7 @@ import { lib } from './lib.js';
 import { trackRow, itemRow, card, itemArt, markPlaying } from './rows.js';
 import { trackActions, settingsSheet, itemActions, homeEditor } from './sheets.js';
 import { pins } from './pins.js';
+import { statsView } from './stats.js';
 import { toast } from './ui.js';
 import { mountInstall } from './install.js';
 
@@ -16,7 +17,7 @@ export function createView(r) {
     case 'album': return collectionView('album', r.id);
     case 'liked': return collectionView('liked');
     case 'artist': return artistView(r.id);
-    default: return { home: homeView, search: searchView, library: libraryView }[r.tab]();
+    default: return { home: homeView, search: searchView, library: libraryView, stats: statsView }[r.tab]();
   }
 }
 

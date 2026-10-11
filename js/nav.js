@@ -1,5 +1,5 @@
 // Hash routes look like  #/<tab>/<type>/<id>  e.g. #/library/playlist/37i9dQ…
-export const TABS = ['home', 'search', 'library'];
+export const TABS = ['home', 'search', 'library', 'stats'];
 export const navStack = [];
 
 export function parseRoute(hash = location.hash) {

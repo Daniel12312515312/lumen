@@ -84,14 +84,16 @@ export const spotify = {
     return (d?.items || []).map(x => ({
       track: N.nTrack(x.track),
       context: x.context ? { uri: x.context.uri, type: x.context.type } : null,
+      playedAt: x.played_at,
     })).filter(x => x.track);
   },
-  async topArtists() {
-    const d = await req('GET', '/me/top/artists', { query: { time_range: 'short_term', limit: 20 } });
+  /** range: short_term (≈4 weeks) · medium_term (≈6 months) · long_term (≈1 year+) */
+  async topArtists(range = 'short_term', limit = 20) {
+    const d = await req('GET', '/me/top/artists', { query: { time_range: range, limit } });
     return (d?.items || []).map(N.nArtist);
   },
-  async topTracks() {
-    const d = await req('GET', '/me/top/tracks', { query: { time_range: 'short_term', limit: 20 } });
+  async topTracks(range = 'short_term', limit = 20) {
+    const d = await req('GET', '/me/top/tracks', { query: { time_range: range, limit } });
     return (d?.items || []).map(t => N.nTrack(t));
   },
 

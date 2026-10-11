@@ -191,11 +191,31 @@ export function createMock() {
     async followedArtists() { await lag(); return D.artists.slice(0, 5); },
     async recent() {
       await lag();
-      return [['t0_0', 'p1'], ['t4_0', 'p3'], ['t1_1', null], ['t3_1', 'p4'], ['t2_0', null], ['t5_0', null], ['t0_3', 'p1'], ['t4_1', null]]
-        .map(([id, p]) => ({ track: D.tracks[id], context: p ? { uri: `spotify:playlist:${p}`, type: 'playlist' } : { uri: D.tracks[id].album.uri, type: 'album' } }));
+      const order = [['t0_0', 'p1'], ['t4_0', 'p3'], ['t1_1', null], ['t3_1', 'p4'], ['t2_0', null], ['t5_0', null], ['t0_3', 'p1'], ['t4_1', null]];
+      // 40 demo plays spread over the last few days, mostly in the evening
+      const hours = [21, 22, 20, 23, 9, 18, 21, 8, 13, 22, 21, 19, 17, 0, 22, 20];
+      return Array.from({ length: 40 }, (_, k) => {
+        const [id, p] = order[(k * 3 + (k >> 2)) % order.length];
+        const d = new Date(Date.now() - Math.floor(k / 6) * 86400000);
+        d.setHours(hours[k % hours.length], (k * 7) % 60, 0, 0);
+        return {
+          track: D.tracks[id],
+          context: p ? { uri: `spotify:playlist:${p}`, type: 'playlist' } : { uri: D.tracks[id].album.uri, type: 'album' },
+          playedAt: d.toISOString(),
+        };
+      });
     },
-    async topArtists() { await lag(); return [D.artists[0], D.artists[4], D.artists[1], D.artists[3], D.artists[2], D.artists[5]]; },
-    async topTracks() { await lag(); return ['t0_0', 't4_0', 't1_2', 't3_1', 't0_3', 't2_0', 't5_1', 't4_2'].map(id => D.tracks[id]); },
+    async topArtists(range = 'short_term') {
+      await lag();
+      const order = { short_term: [0, 4, 1, 3, 2, 5], medium_term: [4, 0, 2, 1, 5, 3], long_term: [1, 0, 4, 5, 3, 2] }[range] || [0, 1, 2, 3, 4, 5];
+      return order.map(i => D.artists[i]);
+    },
+    async topTracks(range = 'short_term') {
+      await lag();
+      const ids = ['t0_0', 't4_0', 't1_2', 't3_1', 't0_3', 't2_0', 't5_1', 't4_2', 't0_1', 't1_0', 't3_0', 't5_0'];
+      const shift = { short_term: 0, medium_term: 3, long_term: 6 }[range] || 0;
+      return ids.slice(shift).concat(ids.slice(0, shift)).map(id => D.tracks[id]);
+    },
     async playlist(id) {
       await lag();
       const p = D.playlists.find(x => x.id === id);
