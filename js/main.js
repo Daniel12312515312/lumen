@@ -19,6 +19,27 @@ const LOGO = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="9
 const cache = new Map();
 let current = null;
 
+/** Fast flings blur the page softly by speed; it sharpens again as the scroll slows. */
+function scrollBlur(view) {
+  let lastY = view.scrollTop, lastT = performance.now(), lastEvent = 0, target = 0, blur = 0, raf = 0;
+  const frame = () => {
+    raf = 0;
+    if (performance.now() - lastEvent > 80) target = 0;
+    blur += (target - blur) * .3;
+    const b = blur < .15 ? 0 : blur;
+    view.classList.toggle('sblur', b > 0);
+    if (b > 0) view.style.setProperty('--sblur', `${b.toFixed(2)}px`);
+    if (b > 0 || target > 0) raf = requestAnimationFrame(frame);
+  };
+  view.addEventListener('scroll', () => {
+    const now = performance.now(), y = view.scrollTop;
+    const speed = Math.abs(y - lastY) / Math.max(1, now - lastT); // px per ms
+    lastY = y; lastT = now; lastEvent = now;
+    target = Math.min(2.2, Math.max(0, (speed - 1.4) * 1.1));
+    if (!raf) raf = requestAnimationFrame(frame);
+  }, { passive: true });
+}
+
 function showRoute() {
   const r = parseRoute();
   if (location.hash !== r.key) history.replaceState(history.state, '', r.key);
@@ -34,6 +55,7 @@ function showRoute() {
   if (!entry) {
     entry = createView(r);
     entry.key = r.key;
+    scrollBlur(entry.el);
     cache.set(r.key, entry);
     $('#views').append(entry.el);
   }

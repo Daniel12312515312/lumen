@@ -4,7 +4,10 @@ import { player } from './player.js';
 import { sp, isDemo } from './client.js';
 import { auth } from './auth.js';
 import { go } from './nav.js';
-import { esc, icon, art, artistNames, deviceIcon, store } from './util.js';
+import { esc, icon, art, artistNames, deviceIcon, store, haptic } from './util.js';
+import { pins } from './pins.js';
+import { lib } from './lib.js';
+import { itemArt, itemSub } from './rows.js';
 
 export const getLyricsOffset = () => Number(store('lumen.lyricsOffset')) || 0;
 
@@ -111,11 +114,108 @@ export function npMenu() {
   });
 }
 
+/* ───────── Pin to Home (long-press on an album / playlist / artist) ───────── */
+export function itemActions(x) {
+  if (!x) return;
+  haptic(12);
+  if (x.type === 'liked') {
+    const sheet = openSheet(`<div class="sheet-head">${itemArt(x, '')}<div class="row-text"><div class="row-title">Liked Songs</div></div></div>`
+      + `<button class="sheet-item" data-a="hide">${icon('x')}<span class="si-text">Hide from Home</span></button>`
+      + `<button class="sheet-item" data-a="edit">${icon('home')}<span class="si-text">Edit Home screen</span></button>`);
+    sheet.addEventListener('click', async e => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'hide') { closeSheet(); pins.setShowLiked(false); toast('Liked Songs hidden from Home'); }
+      if (a === 'edit') { await closeOverlays(); homeEditor(); }
+    });
+    return;
+  }
+  const pinned = pins.isPinned(x.uri);
+  const sheet = openSheet(`<div class="sheet-head">${itemArt(x, '')}<div class="row-text"><div class="row-title">${esc(x.name)}</div>`
+    + `<div class="row-sub"><span>${esc(itemSub(x))}</span></div></div></div>`
+    + `<button class="sheet-item${pinned ? ' on' : ''}" data-a="pin">${icon(pinned ? 'pinFill' : 'pin')}<span class="si-text">${pinned ? 'Unpin from Home' : 'Pin to Home'}</span></button>`
+    + `<button class="sheet-item" data-a="open">${icon('chevRight')}<span class="si-text">Open</span></button>`
+    + `<button class="sheet-item" data-a="edit">${icon('home')}<span class="si-text">Edit Home screen</span></button>`);
+  sheet.addEventListener('click', async e => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    if (a === 'pin') {
+      closeSheet();
+      if (pinned) { pins.unpin(x.uri); toast('Removed from Home'); } else { pins.pin(x); toast('Pinned to Home'); }
+    }
+    if (a === 'open') { await closeOverlays(); go(`${x.type}/${x.id}`); }
+    if (a === 'edit') { await closeOverlays(); homeEditor(); }
+  });
+}
+
+/* ───────── Home screen editor ───────── */
+export function homeEditor() {
+  const sheet = openSheet(`<div class="sheet-title">Home screen</div>
+    <label class="sheet-item">${icon('heart')}<span class="si-text">Show Liked Songs</span><input type="checkbox" class="switch" data-liked></label>
+    <div class="ed-h"><span>Pinned</span><button data-a="reset">Reset to automatic</button></div>
+    <div class="ed-pins"></div>
+    <div class="ed-h"><span>Add from your library</span></div>
+    <div class="chips ed-chips"><button class="chip on" data-f="">All</button><button class="chip" data-f="album">Albums</button><button class="chip" data-f="playlist">Playlists</button><button class="chip" data-f="artist">Artists</button></div>
+    <div class="ed-lib"><div class="list-foot"><div class="spinner"></div></div></div>`);
+  const pinsEl = sheet.querySelector('.ed-pins'), libEl = sheet.querySelector('.ed-lib'), liked = sheet.querySelector('[data-liked]');
+  let items = [], filter = '';
+  liked.checked = pins.showLiked;
+  liked.addEventListener('change', () => { haptic(); pins.setShowLiked(liked.checked); });
+
+  const row = (x, right) => `<div class="row ed-row" data-uri="${esc(x.uri)}">${itemArt(x, 'row-art')}`
+    + `<div class="row-text"><div class="row-title">${esc(x.name)}</div><div class="row-sub"><span>${esc(itemSub(x))}</span></div></div>${right}</div>`;
+
+  function drawPins() {
+    const list = pins.custom ? pins.list : [];
+    pinsEl.innerHTML = list.length
+      ? list.map((x, i) => row(x, `<button class="icon-btn" data-a="up" ${i ? '' : 'disabled'} aria-label="Move up">${icon('arrowUp')}</button>`
+        + `<button class="icon-btn" data-a="remove" aria-label="Remove">${icon('x')}</button>`)).join('')
+      : `<div class="sheet-note">${pins.custom ? 'Nothing pinned yet — add some below.' : 'Automatic: your recent albums and playlists. Pin something to choose yourself.'}</div>`;
+  }
+  function drawLib() {
+    const shown = items.filter(x => !filter || x.type === filter);
+    libEl.innerHTML = shown.map(x => {
+      const on = pins.isPinned(x.uri);
+      return row(x, `<button class="ed-add${on ? ' on' : ''}" data-a="toggle" aria-label="${on ? 'Unpin' : 'Pin'}">${icon(on ? 'check' : 'plus')}</button>`);
+    }).join('') || '<div class="sheet-note">Nothing in your library yet.</div>';
+  }
+  const off = pins.on(() => { drawPins(); drawLib(); liked.checked = pins.showLiked; });
+  new MutationObserver((m, obs) => { if (!sheet.isConnected) { off(); obs.disconnect(); } }).observe(document.getElementById('sheet-root'), { childList: true });
+
+  drawPins();
+  Promise.allSettled([lib.albums(), lib.playlists(), lib.artists()]).then(([al, pl, ar]) => {
+    items = [...(al.value || []), ...(pl.value || []), ...(ar.value || [])];
+    drawLib();
+  });
+
+  sheet.addEventListener('click', e => {
+    const chip = e.target.closest('.ed-chips .chip');
+    if (chip) {
+      filter = chip.dataset.f;
+      sheet.querySelectorAll('.ed-chips .chip').forEach(c => c.classList.toggle('on', c === chip));
+      drawLib();
+      return;
+    }
+    const b = e.target.closest('[data-a]');
+    if (!b) return;
+    haptic();
+    const uri = b.closest('[data-uri]')?.dataset.uri;
+    if (b.dataset.a === 'reset') { pins.reset(); toast('Home is automatic again'); }
+    if (b.dataset.a === 'up') pins.move(uri, -1);
+    if (b.dataset.a === 'remove') pins.unpin(uri);
+    if (b.dataset.a === 'toggle') {
+      const x = items.find(i => i.uri === uri);
+      if (pins.isPinned(uri)) pins.unpin(uri);
+      else if (pins.full) toast('Home holds up to 12 — remove one first');
+      else if (x) pins.pin(x);
+    }
+  });
+}
+
 export function settingsSheet() {
   const me = player.me;
   const avatar = me?.image ? `<img src="${esc(me.image)}" alt="">` : esc((me?.name || '?').slice(0, 1).toUpperCase());
   const sheet = openSheet(`<div class="sheet-head"><div class="avatar" style="width:52px;height:52px;font-size:20px">${avatar}</div>`
     + `<div class="row-text"><div class="row-title">${esc(me?.name || 'Listener')}</div><div class="row-sub"><span>${isDemo ? 'Demo mode — sample music' : 'Connected to Spotify'}</span></div></div></div>`
+    + `<button class="sheet-item" data-a="home">${icon('home')}<span class="si-text">Edit Home screen<small>Pinned albums, playlists, artists · Liked Songs</small></span></button>`
     + offsetItem()
     + `<button class="sheet-item" data-a="devices">${icon('speaker')}<span class="si-text">Devices</span></button>`
     + `<a class="sheet-item" href="spotify:">${icon('open')}<span class="si-text">Open the Spotify app</span></a>`
@@ -126,6 +226,7 @@ export function settingsSheet() {
     const b = e.target.closest('[data-a]');
     if (!b) return;
     if (b.dataset.a === 'devices') { await closeOverlays(); devicesSheet(); }
+    if (b.dataset.a === 'home') { await closeOverlays(); homeEditor(); }
     if (b.dataset.a === 'out') {
       store('lumen.demo', null);
       if (!isDemo) auth.logout();

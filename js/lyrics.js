@@ -234,6 +234,7 @@ const GLOW = keyframes([[0, 0], [.15, 1], [.6, 1], [1, 0]]);
 const MOTION = { scale: [.6, .7], rise: [.4, 1.25], glow: [.5, 1] }; // [damping ratio, Hz]
 // glow at full strength: [extra blur px, opacity] for normal letters and for long held words
 const GLOW_LOOK = { base: 4, normal: [2, .3], held: [6, .8] };
+const MOTION_BLUR = { per: 150, max: 2.8 }; // px/s of movement per 1px of blur, cap in px
 
 class Motion {
   constructor(x, [zeta, hz]) { this.x = x; this.v = 0; this.target = x; this.z = zeta; this.w = hz * 2 * Math.PI; }
@@ -458,11 +459,21 @@ export class LyricsView {
       if (this.manual && !this.drag && now > this.manualUntil) this.exitManual();
     }
 
+    // soft motion blur: lines blur a little in proportion to how fast they're moving
+    const dragV = this.drag?.moved ? Math.abs(this.drag.v) : 0;
     for (const it of this.items) {
       it.spring.step(dt, now);
       if (it.drawn !== it.spring.x) {
         it.el.style.transform = `translate3d(0,${it.spring.x.toFixed(2)}px,0)`;
         it.drawn = it.spring.x;
+      }
+      const y = it.top + it.spring.x;
+      const onScreen = y > -200 && y < this.h + 200;
+      const mb = onScreen ? Math.min(MOTION_BLUR.max, Math.max(dragV, Math.abs(it.spring.v)) / MOTION_BLUR.per) : 0;
+      const key = mb > .2 ? mb.toFixed(1) : '';
+      if (key !== (it.mb || '')) {
+        it.el.style.filter = key ? `blur(${key}px)` : '';
+        it.mb = key;
       }
     }
   }

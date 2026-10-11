@@ -5,7 +5,8 @@ import { player } from './player.js';
 import { go, back } from './nav.js';
 import { lib } from './lib.js';
 import { trackRow, itemRow, card, itemArt, markPlaying } from './rows.js';
-import { trackActions, settingsSheet } from './sheets.js';
+import { trackActions, settingsSheet, itemActions, homeEditor } from './sheets.js';
+import { pins } from './pins.js';
 import { toast } from './ui.js';
 import { mountInstall } from './install.js';
 
@@ -51,6 +52,22 @@ function wireTracks(container, getTracks, onPlay) {
   });
 }
 
+/** Pin-to-Home toggle in a page's top bar. */
+function wirePin(btn, item) {
+  const paint = () => {
+    const on = pins.isPinned(item.uri);
+    btn.innerHTML = icon(on ? 'pinFill' : 'pin');
+    btn.classList.toggle('on', on);
+  };
+  btn.classList.remove('hidden');
+  paint();
+  pins.on(paint);
+  btn.addEventListener('click', () => {
+    haptic();
+    if (pins.isPinned(item.uri)) { pins.unpin(item.uri); toast('Removed from Home'); } else { pins.pin(item); toast('Pinned to Home'); }
+  });
+}
+
 function wireTopbar(v, threshold = 190) {
   const bar = $('.topbar', v);
   $('.back', v).onclick = () => back();
@@ -93,7 +110,7 @@ function homeView() {
     const seen = new Set();
     const recentTracks = R.filter(x => !seen.has(x.track.id) && seen.add(x.track.id)).slice(0, 14);
     data = {
-      shortcuts: await buildShortcuts(R, pls.value || []),
+      auto: await buildShortcuts(R, pls.value || []),
       recent: recentTracks,
       artists: topA.value || [],
       top: (topT.value || []).slice(0, 10),
@@ -101,17 +118,37 @@ function homeView() {
     render();
   }
 
+  /** Liked Songs (if shown) + pinned items, or the automatic picks until something is pinned. */
+  function shortcuts() {
+    const liked = pins.showLiked ? [{ type: 'liked', name: 'Liked Songs' }] : [];
+    if (pins.custom) return [...liked, ...pins.list];
+    pins.auto = data.auto.slice(0, 8 - liked.length); // what you see is what the first pin keeps
+    return [...liked, ...pins.auto];
+  }
+
+  function renderShortcuts() {
+    const wrap = $('.sc-wrap', body);
+    if (!wrap) return;
+    data.shortcuts = shortcuts();
+    wrap.innerHTML = data.shortcuts.length
+      ? `<div class="shortcuts">${data.shortcuts.map((s, i) => `<button class="shortcut" data-i="${i}">${itemArt(s, 'sc-art')}<span>${esc(s.name)}</span></button>`).join('')}</div>`
+      : `<button class="note-card glass-card sc-empty">Pin albums, playlists or artists here — tap <b>Edit</b> or long-press any of them.</button>`;
+  }
+
   function render() {
     const d = data;
-    body.innerHTML = `<div class="shortcuts">${d.shortcuts.map((s, i) => `<button class="shortcut" data-i="${i}">${itemArt(s, 'sc-art')}<span>${esc(s.name)}</span></button>`).join('')}</div>`
+    body.innerHTML = `<div class="sc-head"><span>Quick access</span><button class="sc-edit">Edit</button></div><div class="sc-wrap"></div>`
       + (d.recent.length ? `<div class="sec-h"><h2>Recently played</h2></div><div class="hscroll" data-k="recent">${d.recent.map((x, i) => card({ ...x.track, image: x.track.album.image }, i, artistNames(x.track))).join('')}</div>` : '')
       + (d.artists.length ? `<div class="sec-h"><h2>Your top artists</h2></div><div class="hscroll" data-k="artists">${d.artists.map((a, i) => card(a, i, '')).join('')}</div>` : '')
       + (d.top.length ? `<div class="sec-h"><h2>On repeat</h2><button data-k="playtop">Play all</button></div><div class="list" data-k="top">${d.top.map((t, i) => trackRow(t, i)).join('')}</div>` : '');
+    renderShortcuts();
     markPlaying(body);
   }
+  pins.on(() => { if (data) renderShortcuts(); });
 
   body.addEventListener('click', e => {
     if (!data) return;
+    if (e.target.closest('.sc-edit, .sc-empty')) { haptic(); homeEditor(); return; }
     const sc = e.target.closest('.shortcut');
     if (sc) { haptic(); openItem(data.shortcuts[Number(sc.dataset.i)]); return; }
     const c = e.target.closest('.card');
@@ -129,10 +166,15 @@ function homeView() {
     if (e.target.closest('[data-k="playtop"]')) { haptic(); player.playUris(data.top, 0); }
   });
   body.addEventListener('contextmenu', e => {
-    const c = e.target.closest('.hscroll[data-k="recent"] .card');
-    if (!c || !data) return;
+    if (!data) return;
+    const sc = e.target.closest('.shortcut');
+    const c = e.target.closest('.card');
+    if (!sc && !c) return;
     e.preventDefault();
-    trackActions(data.recent[Number(c.dataset.i)].track);
+    if (sc) { itemActions(data.shortcuts[Number(sc.dataset.i)]); return; }
+    const k = c.parentElement.dataset.k, i = Number(c.dataset.i);
+    if (k === 'recent') trackActions(data.recent[i].track);
+    if (k === 'artists') itemActions(data.artists[i]);
   });
   wireTracks(body, () => data?.top || [], i => player.playUris(data.top, i));
 
@@ -141,7 +183,7 @@ function homeView() {
 }
 
 async function buildShortcuts(R, PL) {
-  const out = [{ type: 'liked', name: 'Liked Songs' }];
+  const out = [];
   const seen = new Set();
   let lookups = 0;
   for (const { track, context } of R) {
@@ -150,7 +192,7 @@ async function buildShortcuts(R, PL) {
     if (!uri || seen.has(uri) || uri.endsWith(':collection')) continue;
     seen.add(uri);
     const [, type, id] = uri.split(':');
-    if (type === 'album') out.push({ type: 'album', id, name: track.album.name, image: track.album.image });
+    if (type === 'album') out.push({ type: 'album', id, uri, name: track.album.name, image: track.album.image, artists: track.artists });
     else if (type === 'playlist') {
       let p = PL.find(x => x.id === id);
       if (!p && lookups < 3) { lookups++; p = await sp.playlistMeta(id).catch(() => null); }
@@ -286,6 +328,18 @@ function searchView() {
     const item = e.target.closest('.row.item');
     if (item && item.parentElement.dataset.k === 'recent') { haptic(); openItem(recents[Number(item.dataset.i)]); }
   });
+  body.addEventListener('contextmenu', e => {
+    const c = e.target.closest('.card');
+    const item = e.target.closest('.row.item');
+    const top = e.target.closest('[data-k="top"]');
+    let x = null;
+    if (c) x = res?.[c.parentElement.dataset.k]?.[Number(c.dataset.i)];
+    else if (item && item.parentElement.dataset.k === 'recent') x = recents[Number(item.dataset.i)];
+    else if (top && res?.top?.type === 'artist') x = res.top;
+    if (!x) return;
+    e.preventDefault();
+    itemActions(x);
+  });
   wireTracks(body, row => (row.parentElement.dataset.k === 'recent' ? recents : res?.tracks || []), (i, t) => {
     remember(t);
     playTrackInContext(t);
@@ -334,6 +388,12 @@ function libraryView() {
     const row = e.target.closest('.row.item');
     if (row) { haptic(); openItem(shown[Number(row.dataset.i)]); }
   });
+  list.addEventListener('contextmenu', e => {
+    const row = e.target.closest('.row.item');
+    if (!row) return;
+    e.preventDefault();
+    itemActions(shown[Number(row.dataset.i)]);
+  });
 
   render();
   load();
@@ -344,6 +404,7 @@ function libraryView() {
 function collectionView(kind, id) {
   const v = el(`<div class="view coll has-topbar">
     <div class="topbar"><button class="icon-btn back" aria-label="Back">${icon('chevLeft')}</button><div class="topbar-title"></div>
+      <button class="icon-btn pinb hidden" aria-label="Pin to Home">${icon('pin')}</button>
       <button class="icon-btn save hidden" aria-label="Save">${icon('heart')}</button></div>
     <div class="hero"><div class="hero-art sk"></div><div class="sk sk-line" style="width:50%;height:22px;margin-top:24px"></div>
       <div class="sk sk-line" style="width:32%;margin-top:12px"></div></div>
@@ -374,6 +435,7 @@ function collectionView(kind, id) {
       return;
     }
     renderHero();
+    if (kind !== 'liked') wirePin($('.pinb', v), info);
     if (kind === 'playlist' && !info.firstPage) {
       list.innerHTML = '<div class="note-card glass-card"><b>Song list not available</b><br>Spotify only lets apps show the songs of playlists you created. You can still play or shuffle this playlist.</div>';
     } else {
@@ -466,7 +528,8 @@ function collectionView(kind, id) {
 /* ───────── Artist ───────── */
 function artistView(id) {
   const v = el(`<div class="view artist has-topbar">
-    <div class="topbar"><button class="icon-btn back" aria-label="Back">${icon('chevLeft')}</button><div class="topbar-title"></div><span style="width:44px"></span></div>
+    <div class="topbar"><button class="icon-btn back" aria-label="Back">${icon('chevLeft')}</button><div class="topbar-title"></div>
+      <button class="icon-btn pinb" style="visibility:hidden" aria-label="Pin to Home">${icon('pin')}</button></div>
     <div class="artist-hero"><div class="sk" style="position:absolute;inset:0;border-radius:0"></div></div>
     <div class="artist-body">${skCards(3)}</div></div>`);
   wireTopbar(v, 300);
@@ -486,6 +549,8 @@ function artistView(id) {
     singles = si.value || [];
     heroEl.innerHTML = `${artist.imageLarge ? `<img src="${esc(artist.imageLarge)}" alt="">` : `<div class="ph">${icon('artist')}</div>`}<h1>${esc(artist.name)}</h1>`;
     $('.topbar-title', v).textContent = artist.name;
+    $('.pinb', v).style.visibility = '';
+    wirePin($('.pinb', v), artist);
     body.innerHTML = `<div class="artist-actions"><button class="pill-btn" data-a="play">${icon('play')}Play</button><button class="pill-btn" data-a="shuffle">${icon('shuffle')}Shuffle</button></div>`
       + (artist.genres?.length ? `<div class="hero-sub" style="padding:10px 20px 0;text-align:left">${esc(artist.genres.slice(0, 3).join(' · '))}</div>` : '')
       + (albums.length ? `<div class="sec-h"><h2>Albums</h2></div><div class="hscroll" data-k="albums">${albums.map((x, i) => card(x, i, x.year)).join('')}</div>` : '')
@@ -502,6 +567,12 @@ function artistView(id) {
       haptic();
       openItem(list[Number(c.dataset.i)]);
     }
+  });
+  body.addEventListener('contextmenu', e => {
+    const c = e.target.closest('.card');
+    if (!c) return;
+    e.preventDefault();
+    itemActions((c.parentElement.dataset.k === 'albums' ? albums : singles)[Number(c.dataset.i)]);
   });
 
   load();
