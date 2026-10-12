@@ -33,9 +33,11 @@ export function itemRow(x, i) {
 }
 
 export function card(x, i, sub) {
-  return `<button class="card${x.type === 'artist' ? ' round' : ''}" data-i="${i}">`
+  const playable = x.uri && ['album', 'playlist', 'artist'].includes(x.type);
+  return `<button class="card${x.type === 'artist' ? ' round' : ''}" data-i="${i}"><div class="card-art-wrap">`
     + art(x.image || x.album?.image, 'card-art', x.type === 'artist' ? 'artist' : 'music')
-    + `<div class="card-title">${esc(x.name)}</div><div class="card-sub">${esc(sub ?? itemSub(x))}</div></button>`;
+    + (playable ? `<span class="card-play" data-uri="${esc(x.uri)}" role="button" aria-label="Play">${icon('play')}</span>` : '')
+    + `</div><div class="card-title">${esc(x.name)}</div><div class="card-sub">${esc(sub ?? itemSub(x))}</div></button>`;
 }
 
 export function markPlaying(root = document) {

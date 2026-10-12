@@ -6,14 +6,18 @@ import { createMock } from './mock.js';
 import { setClient } from './client.js';
 import { player } from './player.js';
 import { background } from './background.js';
-import { initNowPlaying } from './nowplaying.js';
+import { initNowPlaying, toggleLyrics } from './nowplaying.js';
 import { createView } from './views.js';
-import { parseRoute, navStack, TABS, goTab } from './nav.js';
-import { markPlaying } from './rows.js';
+import { parseRoute, navStack, TABS, goTab, go } from './nav.js';
+import { markPlaying, itemArt, itemSub } from './rows.js';
 import { lib } from './lib.js';
 import { mountInstall } from './install.js';
+import { pins } from './pins.js';
+import { sleepTimer } from './sleeptimer.js';
+import { itemActions } from './sheets.js';
+import { overlayCount } from './ui.js';
 
-const LOGO = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="9" y="12" width="22" height="5" rx="2.5" fill="#fff" opacity=".55"/><rect x="9" y="21.5" width="30" height="5" rx="2.5" fill="#fff"/><rect x="9" y="31" width="17" height="5" rx="2.5" fill="#fff" opacity=".55"/></svg>';
+const LOGO = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="9" y="12" width="22" height="5" rx="2.5" fill="#1DB954" opacity=".7"/><rect x="9" y="21.5" width="30" height="5" rx="2.5" fill="#1ED760"/><rect x="9" y="31" width="17" height="5" rx="2.5" fill="#1DB954" opacity=".7"/></svg>';
 
 /* ───────── Router ───────── */
 const cache = new Map();
@@ -69,6 +73,62 @@ function wireTabs() {
   });
 }
 
+/* ───────── Desktop side menu: pinned items ───────── */
+let sideItems = [];
+async function renderSidePins() {
+  const el = $('.side-pins');
+  if (!el) return;
+  const liked = pins.showLiked ? [{ type: 'liked', name: 'Liked Songs' }] : [];
+  let list = pins.custom ? pins.list : pins.auto;
+  if (!pins.custom && !list.length) list = (await lib.playlists().catch(() => [])).slice(0, 8);
+  sideItems = [...liked, ...list];
+  el.innerHTML = '<div class="side-h">Pinned</div>' + sideItems.map((x, i) => `<button class="side-item" data-i="${i}">${itemArt(x, 'side-art')}`
+    + `<span class="side-text"><span class="side-name">${esc(x.name)}</span><span class="side-sub">${esc(itemSub(x))}</span></span></button>`).join('');
+}
+function wireSide() {
+  const el = $('.side-pins');
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.side-item');
+    const x = b && sideItems[Number(b.dataset.i)];
+    if (!x) return;
+    if (x.type === 'liked') go('liked'); else go(`${x.type}/${x.id}`);
+  });
+  el.addEventListener('contextmenu', e => {
+    const b = e.target.closest('.side-item');
+    if (!b) return;
+    e.preventDefault();
+    itemActions(sideItems[Number(b.dataset.i)]);
+  });
+  pins.on(renderSidePins);
+  renderSidePins();
+}
+
+/* ───────── PC: keyboard shortcuts + hover play buttons ───────── */
+function wireKeys() {
+  addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, [contenteditable]')) return;
+    const k = e.key;
+    if (k === ' ' || k === 'k') { e.preventDefault(); player.toggle(); }
+    else if (k === 'ArrowRight' && e.shiftKey) player.seek(player.position() + 10_000);
+    else if (k === 'ArrowLeft' && e.shiftKey) player.seek(player.position() - 10_000);
+    else if (k === 'ArrowRight') player.next();
+    else if (k === 'ArrowLeft') player.prev();
+    else if (k === 'l' || k === 'L') toggleLyrics();
+    else if (k === 's' || k === 'S') player.shuffle();
+    else if (k === '/') { e.preventDefault(); goTab('search'); setTimeout(() => $('.view.search input')?.focus(), 80); }
+    else if (k === 'Escape' && overlayCount()) history.back();
+    else return;
+  });
+  // the round play button that appears on covers when hovering with a mouse
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.card-play');
+    if (!b) return;
+    e.preventDefault();
+    e.stopPropagation();
+    player.playContext(b.dataset.uri);
+  }, true);
+}
+
 /* ───────── Setup ───────── */
 function showSetup(err) {
   $('#app').classList.add('hidden');
@@ -122,7 +182,11 @@ function start() {
   $('#setup').classList.add('hidden');
   $('#app').classList.remove('hidden');
   wireTabs();
+  wireSide();
+  wireKeys();
+  mountInstall($('.side-install'));
   initNowPlaying();
+  sleepTimer.init();
   lib.me().then(me => { player.me = me; }).catch(() => {});
   player.on(type => {
     if (type === 'auth') { auth.logout(); showSetup('Your Spotify session ended — please connect again.'); }

@@ -82,9 +82,8 @@ function playTrackInContext(t) {
 
 /* ───────── Home ───────── */
 function homeView() {
-  const date = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   const v = el(`<div class="view home">
-    <header class="page-head"><div><div class="eyebrow">${esc(date)}</div><h1 class="page-title">${greeting()}</h1></div>
+    <header class="page-head"><h1 class="page-title">${greeting()}</h1>
       <button class="avatar" aria-label="Settings">${icon('settings')}</button></header>
     <div class="install-slot"></div>
     <div class="home-body"><div class="shortcuts">${'<div class="shortcut sk"></div>'.repeat(8)}</div>
@@ -97,12 +96,12 @@ function homeView() {
 
   async function load() {
     loadedAt = Date.now();
-    const [me, recent, topA, topT, pls] = await Promise.allSettled([lib.me(), sp.recent(), sp.topArtists(), sp.topTracks(), lib.playlists()]);
+    const [me, recent, topA, pls] = await Promise.allSettled([lib.me(), sp.recent(), sp.topArtists(), lib.playlists()]);
     if (me.value) {
       player.me = me.value;
       avatar.innerHTML = me.value.image ? `<img src="${esc(me.value.image)}" alt="">` : esc(me.value.name.slice(0, 1).toUpperCase());
     }
-    if ([recent, topA, topT, pls].every(r => r.status === 'rejected')) {
+    if ([recent, topA, pls].every(r => r.status === 'rejected')) {
       body.innerHTML = errorBox(recent.reason?.message);
       body.querySelector('[data-retry]').onclick = load;
       return;
@@ -114,7 +113,6 @@ function homeView() {
       auto: await buildShortcuts(R, pls.value || []),
       recent: recentTracks,
       artists: topA.value || [],
-      top: (topT.value || []).slice(0, 10),
     };
     render();
   }
@@ -140,8 +138,7 @@ function homeView() {
     const d = data;
     body.innerHTML = `<div class="sc-head"><span>Quick access</span><button class="sc-edit">Edit</button></div><div class="sc-wrap"></div>`
       + (d.recent.length ? `<div class="sec-h"><h2>Recently played</h2></div><div class="hscroll" data-k="recent">${d.recent.map((x, i) => card({ ...x.track, image: x.track.album.image }, i, artistNames(x.track))).join('')}</div>` : '')
-      + (d.artists.length ? `<div class="sec-h"><h2>Your top artists</h2></div><div class="hscroll" data-k="artists">${d.artists.map((a, i) => card(a, i, '')).join('')}</div>` : '')
-      + (d.top.length ? `<div class="sec-h"><h2>On repeat</h2><button data-k="playtop">Play all</button></div><div class="list" data-k="top">${d.top.map((t, i) => trackRow(t, i)).join('')}</div>` : '');
+      + (d.artists.length ? `<div class="sec-h"><h2>Your top artists</h2></div><div class="hscroll" data-k="artists">${d.artists.slice(0, 12).map((a, i) => card(a, i, '')).join('')}</div>` : '');
     renderShortcuts();
     markPlaying(body);
   }
@@ -162,9 +159,7 @@ function homeView() {
         if (context?.uri && (context.type === 'playlist' || context.type === 'album')) player.playContext(context.uri, { offsetUri: track.uri, track });
         else playTrackInContext(track);
       }
-      return;
     }
-    if (e.target.closest('[data-k="playtop"]')) { haptic(); player.playUris(data.top, 0); }
   });
   body.addEventListener('contextmenu', e => {
     if (!data) return;
@@ -177,7 +172,6 @@ function homeView() {
     if (k === 'recent') trackActions(data.recent[i].track);
     if (k === 'artists') itemActions(data.artists[i]);
   });
-  wireTracks(body, () => data?.top || [], i => player.playUris(data.top, i));
 
   load();
   return { el: v, onShow() { if (Date.now() - loadedAt > 5 * 60_000) load(); } };
@@ -457,9 +451,9 @@ function collectionView(kind, id) {
       ? [info.albumType === 'single' ? 'Single' : 'Album', info.year, `${count} songs`].filter(Boolean).join(' · ')
       : `${count} songs`;
     hero.innerHTML = (kind === 'liked' ? `<div class="hero-art liked-art">${icon('heartFill')}</div>` : art(info.imageLarge || info.image, 'hero-art'))
-      + `<h1>${esc(info.name)}</h1>${by ? `<button class="hero-by">${esc(by)}</button>` : ''}<div class="hero-sub">${esc(sub)}</div>`
+      + `<div class="hero-text"><h1>${esc(info.name)}</h1>${by ? `<button class="hero-by">${esc(by)}</button>` : ''}<div class="hero-sub">${esc(sub)}</div>`
       + (info.description ? `<div class="hero-desc">${esc(info.description)}</div>` : '')
-      + `<div class="hero-actions"><button class="pill-btn" data-a="play">${icon('play')}Play</button><button class="pill-btn" data-a="shuffle">${icon('shuffle')}Shuffle</button></div>`;
+      + `<div class="hero-actions"><button class="pill-btn" data-a="play">${icon('play')}Play</button><button class="pill-btn" data-a="shuffle">${icon('shuffle')}Shuffle</button></div></div>`;
     $('.topbar-title', v).textContent = info.name;
   }
 

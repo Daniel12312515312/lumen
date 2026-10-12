@@ -145,6 +145,10 @@ export const player = {
     const playing = this.playing;
     return this.act(id => (playing ? sp.pause(id) : sp.play({ deviceId: id })), { optimistic: { isPlaying: !playing } });
   },
+  pause() {
+    if (!this.playing) return Promise.resolve();
+    return this.act(id => sp.pause(id), { optimistic: { isPlaying: false } });
+  },
   next() {
     this.lastSkip = { dir: 1, at: performance.now() };
     const n = this.upNext[0];

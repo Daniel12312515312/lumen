@@ -44,7 +44,7 @@ function frame(now) {
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#0e0e15';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.filter = 'blur(9px) saturate(1.6)';
+  ctx.filter = 'blur(9px) saturate(1.25)';
   const f = clamp((now - fadeStart) / FADE, 0, 1);
   if (prev && f < 1) drawSet(prev.img, 1, t);
   if (cur) drawSet(cur.img, prev && f < 1 ? easeInOut(f) : 1, t);
@@ -131,7 +131,7 @@ function applyColors(info) {
   const [r, g, b] = info.accent;
   root.setProperty('--accent', `rgb(${r}, ${g}, ${b})`);
   root.setProperty('--on-accent', (.2126 * r + .7152 * g + .0722 * b) / 255 > .55 ? '#0b0b0f' : '#ffffff');
-  root.setProperty('--shade', (.2 + info.lum * .42).toFixed(3));
+  root.setProperty('--shade', (.32 + info.lum * .38).toFixed(3)); // calm: darker, so text stays crisp
   const [ar, ag, ab] = info.avg.map(v => Math.round(v * .3));
   meta?.setAttribute('content', `rgb(${ar}, ${ag}, ${ab})`);
 }

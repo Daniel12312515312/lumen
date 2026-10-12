@@ -32,17 +32,45 @@
   </div>
 
   <nav id="tabbar">
+    <div class="side-brand"><img src="icons/icon-192.png" alt=""><span>Lumen</span></div>
     <button class="tab" data-tab="home"></button>
     <button class="tab" data-tab="search"></button>
     <button class="tab" data-tab="library"></button>
     <button class="tab" data-tab="stats"></button>
+    <div class="side-pins"></div>
+    <div class="side-install install-slot"></div>
   </nav>
+
+  <!-- desktop player bar (wide screens only) -->
+  <div id="dbar" class="hidden">
+    <div class="db-left">
+      <button class="db-now" data-act="open"><img class="db-art" alt=""><span class="db-text"><span class="db-title"></span><span class="db-artist"></span></span></button>
+      <button class="icon-btn db-like" aria-label="Like"></button>
+    </div>
+    <div class="db-center">
+      <div class="db-buttons">
+        <button class="ctl small" data-act="shuffle" aria-label="Shuffle"></button>
+        <button class="ctl" data-act="prev" aria-label="Previous"></button>
+        <button class="ctl play" data-act="toggle" aria-label="Play or pause"></button>
+        <button class="ctl" data-act="next" aria-label="Next"></button>
+        <button class="ctl small" data-act="repeat" aria-label="Repeat"></button>
+      </div>
+      <div class="db-progress"><span class="db-pos">0:00</span><div class="np-bar db-bar"><div class="np-fill db-fill"></div></div><span class="db-dur">0:00</span></div>
+    </div>
+    <div class="db-right">
+      <button class="icon-btn db-sleep" data-act="sleep" aria-label="Sleep timer"></button>
+      <button class="icon-btn" data-act="lyrics" aria-label="Lyrics"></button>
+      <button class="icon-btn" data-act="queue" aria-label="Queue"></button>
+      <button class="np-device" data-act="devices" aria-label="Devices"></button>
+    </div>
+  </div>
 </div>
 
 <section id="np" data-mode="cover" aria-hidden="true">
   <header class="np-top">
     <button class="icon-btn" id="np-close" aria-label="Close"></button>
     <div class="np-context"><small>Playing from</small><b></b></div>
+    <button class="np-sleep hidden" aria-label="Sleep timer"></button>
     <button class="icon-btn" id="np-more" aria-label="More"></button>
   </header>
   <div class="np-main">

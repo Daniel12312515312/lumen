@@ -9,7 +9,8 @@ import { go } from './nav.js';
 import { card, trackRow, markPlaying } from './rows.js';
 import { trackActions, itemActions } from './sheets.js';
 
-const RANGES = [['short_term', '4 weeks'], ['medium_term', '6 months'], ['long_term', 'All time']];
+// Spotify's three windows: ≈4 weeks, ≈6 months, ≈12 months (its "long term" — there is no all-time option)
+const RANGES = [['short_term', '4 weeks'], ['medium_term', '6 months'], ['long_term', '12 months']];
 const hourLabel = h => `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`;
 const skeleton = '<div class="st-hero"><div class="st-card sk" style="height:210px"></div><div class="st-card sk" style="height:210px"></div></div>'
   + '<div class="sec-h"><h2>Top artists</h2></div><div class="hscroll">' + '<div class="card round"><div class="card-art sk"></div></div>'.repeat(3) + '</div>';
@@ -113,7 +114,7 @@ export function statsView() {
         + `<div class="st-sub">${esc(artistNames(t1))}</div></button>` : '')
       + '</div>'
       + (artists.length ? `<div class="sec-h"><h2>Top artists</h2></div><div class="hscroll" data-k="artists">${artists.slice(0, 20).map((a, i) => card(a, i, '')
-        .replace('<div class="card-title">', `<span class="st-rank">${i + 1}</span><div class="card-title">`)).join('')}</div>` : '')
+        .replace('</div><div class="card-title">', `<span class="st-rank">${i + 1}</span></div><div class="card-title">`)).join('')}</div>` : '')
       + (tracks.length ? `<div class="sec-h"><h2>Top songs</h2>${tracks.length > 10 ? `<button data-k="more">${cur.all ? 'Show less' : `Show all ${tracks.length}`}</button>` : ''}</div>`
         + `<div class="list" data-k="songs">${songs.map((t, i) => rankRow(t, i)).join('')}</div>` : '')
       + (albums.length ? `<div class="sec-h"><h2>Top albums</h2></div><div class="hscroll" data-k="albums">${albums.map((x, i) => card(x, i, `${x.count} top song${x.count > 1 ? 's' : ''}`)).join('')}</div>` : '')

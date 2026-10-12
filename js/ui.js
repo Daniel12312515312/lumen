@@ -9,6 +9,7 @@ export function pushOverlay(name, close) {
   history.pushState({ overlay: name, depth: overlays.length }, '', location.href);
 }
 export const overlayOpen = name => overlays.some(o => o.name === name);
+export const overlayCount = () => overlays.length;
 
 addEventListener('popstate', e => {
   const depth = e.state?.depth || 0;

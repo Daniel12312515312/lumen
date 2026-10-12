@@ -1,10 +1,10 @@
 // Network-first service worker: always fresh when online, still opens offline.
-const CACHE = 'lumen-v4';
+const CACHE = 'lumen-v5';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/util.js', 'js/auth.js', 'js/client.js', 'js/spotify.js', 'js/mock.js', 'js/normalize.js',
   'js/player.js', 'js/background.js', 'js/lyrics.js', 'js/nowplaying.js', 'js/views.js', 'js/rows.js',
-  'js/sheets.js', 'js/ui.js', 'js/nav.js', 'js/lib.js', 'js/install.js', 'js/pins.js', 'js/stats.js', 'icons/icon-192.png', 'icons/icon-512.png',
+  'js/sheets.js', 'js/ui.js', 'js/nav.js', 'js/lib.js', 'js/install.js', 'js/pins.js', 'js/stats.js', 'js/sleeptimer.js', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 
 self.addEventListener('install', e => {

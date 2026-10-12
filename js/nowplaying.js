@@ -6,11 +6,22 @@ import { LyricsView, fetchLyrics } from './lyrics.js';
 import { pushOverlay, closeOverlays } from './ui.js';
 import { go } from './nav.js';
 import { trackRow, markPlaying } from './rows.js';
-import { trackActions, devicesSheet, npMenu, getLyricsOffset } from './sheets.js';
+import { trackActions, devicesSheet, npMenu, getLyricsOffset, sleepSheet } from './sheets.js';
+import { sleepTimer } from './sleeptimer.js';
 
 const np = $('#np');
 const app = $('#app');
 const mini = $('#mini');
+const dbar = $('#dbar');
+const wide = matchMedia('(min-width: 1000px)'); // desktop layout: side menu, player bar, cover + lyrics side by side
+const isDesktop = () => wide.matches;
+const D = {
+  art: $('.db-art', dbar), title: $('.db-title', dbar), artist: $('.db-artist', dbar), like: $('.db-like', dbar),
+  play: $('[data-act="toggle"]', dbar), shuffle: $('[data-act="shuffle"]', dbar), repeat: $('[data-act="repeat"]', dbar),
+  fill: $('.db-fill', dbar), pos: $('.db-pos', dbar), dur: $('.db-dur', dbar), progress: $('.db-progress', dbar),
+  device: $('.np-device', dbar), sleep: $('.db-sleep', dbar), lyrics: $('[data-act="lyrics"]', dbar), queue: $('[data-act="queue"]', dbar),
+};
+const npSleep = $('.np-sleep', np);
 const E = {
   art: $('.np-art', np), artWrap: $('.np-art-wrap', np), meta: $('.np-meta', np),
   title: $('.np-title', np), titleSpan: $('.np-title span', np), artist: $('.np-artist', np),
@@ -43,8 +54,19 @@ export function initNowPlaying() {
   E.lyricsBtn.innerHTML = `${icon('lyrics')}<span>Lyrics</span>`;
   E.queueBtn.innerHTML = icon('queue');
   $('[data-act="next"]', mini).innerHTML = icon('next');
+  $('[data-act="prev"]', dbar).innerHTML = icon('prev');
+  $('[data-act="next"]', dbar).innerHTML = icon('next');
+  D.shuffle.innerHTML = icon('shuffle');
+  D.lyrics.innerHTML = icon('lyrics');
+  D.queue.innerHTML = icon('queue');
   np.dataset.mode = mode;
   E.lyricsBtn.classList.toggle('on', mode === 'lyrics');
+  sleepTimer.on(paintSleep);
+  paintSleep();
+  wide.addEventListener('change', () => {
+    if (isDesktop() && mode === 'cover') setMode('lyrics', false);
+    poke();
+  });
 
   player.on(type => {
     if (type === 'track') updateTrack();
@@ -58,10 +80,47 @@ export function initNowPlaying() {
   wireControls();
   wireMini();
   wireGestures();
-  wireScrub();
+  wireScrub(E.progress, E);
+  wireScrub(D.progress, D);
+  wireDbar();
   requestAnimationFrame(tick);
   updateTrack();
   updateState();
+}
+
+function paintSleep() {
+  const on = sleepTimer.active;
+  const label = sleepTimer.label();
+  npSleep.classList.toggle('hidden', !on);
+  npSleep.innerHTML = on ? `${icon('moon')}<span>${esc(label)}</span>` : '';
+  D.sleep.innerHTML = on ? `${icon('moon')}<span>${esc(label)}</span>` : icon('moon');
+  D.sleep.classList.toggle('on', on);
+}
+
+/** Desktop player bar. */
+function wireDbar() {
+  dbar.addEventListener('click', e => {
+    const b = e.target.closest('[data-act], .db-like');
+    if (!b) return;
+    if (b.classList.contains('db-like')) { player.setLiked(player.track, !player.liked); return; }
+    switch (b.dataset.act) {
+      case 'open': openNP('lyrics'); break;
+      case 'toggle': player.toggle(); break;
+      case 'next': player.next(); break;
+      case 'prev': player.prev(); break;
+      case 'shuffle': player.shuffle(); break;
+      case 'repeat': player.repeat(); break;
+      case 'lyrics': if (open && mode === 'lyrics') history.back(); else openNP('lyrics'); break;
+      case 'queue': if (open && mode === 'queue') history.back(); else openNP('queue'); break;
+      case 'devices': devicesSheet(); break;
+      case 'sleep': sleepSheet(); break;
+    }
+  });
+}
+
+/** Keyboard "L": open the lyrics, or close the song screen if it's open. */
+export function toggleLyrics() {
+  if (open) history.back(); else openNP('lyrics');
 }
 
 /* ───────── Rendering ───────── */
@@ -73,6 +132,8 @@ function setImg(img, src) {
 function updateTrack() {
   const t = player.track;
   mini.classList.toggle('hidden', !t);
+  dbar.classList.toggle('hidden', !t);
+  document.body.classList.toggle('has-player', !!t);
   if (!t) {
     background.setImage(null);
     if (open) history.back();
@@ -80,13 +141,18 @@ function updateTrack() {
   }
   const big = t.album?.imageLarge || t.album?.image;
   setImg(E.miniArt, t.album?.image || big);
+  setImg(D.art, t.album?.image || big);
   setImg(E.art, big);
   background.setImage(t.album?.image || big);
   E.miniTitle.textContent = t.name;
   E.miniArtist.textContent = artistNames(t);
+  D.title.textContent = t.name;
+  D.artist.textContent = artistNames(t);
   E.titleSpan.textContent = t.name;
   E.artist.textContent = artistNames(t);
-  E.like.classList.toggle('hidden', t.type !== 'track' || t.isLocal);
+  const likeable = t.type === 'track' && !t.isLocal;
+  E.like.classList.toggle('hidden', !likeable);
+  D.like.classList.toggle('hidden', !likeable);
   updateLike();
   updateContext();
   setupMarquee();
@@ -127,8 +193,10 @@ async function loadLyrics(t) {
 
 function updateLike() {
   const on = !!player.liked;
-  E.like.innerHTML = icon(on ? 'heartFill' : 'heart');
-  E.like.classList.toggle('on', on);
+  for (const b of [E.like, D.like]) {
+    b.innerHTML = icon(on ? 'heartFill' : 'heart');
+    b.classList.toggle('on', on);
+  }
 }
 
 function updateContext() {
@@ -148,14 +216,21 @@ function updateState() {
     const pi = icon(playing ? 'pause' : 'play');
     E.play.innerHTML = pi;
     E.miniToggle.innerHTML = pi;
+    D.play.innerHTML = pi;
     np.classList.toggle('paused', !playing);
     document.body.classList.toggle('is-paused', !playing);
-    E.shuffle.classList.toggle('on', !!pb?.shuffle);
-    E.repeat.classList.toggle('on', !!pb?.repeat && pb.repeat !== 'off');
-    E.repeat.innerHTML = icon(pb?.repeat === 'track' ? 'repeatOne' : 'repeat');
+    const rep = icon(pb?.repeat === 'track' ? 'repeatOne' : 'repeat');
+    for (const s of [E, D]) {
+      s.shuffle.classList.toggle('on', !!pb?.shuffle);
+      s.repeat.classList.toggle('on', !!pb?.repeat && pb.repeat !== 'off');
+      s.repeat.innerHTML = rep;
+    }
     const d = pb?.device;
-    E.device.innerHTML = `${icon(deviceIcon(d?.type))}<span>${esc(d ? d.name : 'Devices')}</span>`;
-    E.device.classList.toggle('remote', !!d && d.type !== 'Smartphone');
+    const dev = `${icon(deviceIcon(d?.type))}<span>${esc(d ? d.name : 'Devices')}</span>`;
+    for (const el of [E.device, D.device]) {
+      el.innerHTML = dev;
+      el.classList.toggle('remote', !!d && d.type !== 'Smartphone' && d.type !== 'Computer');
+    }
     poke();
   }
   syncMiniProgress();
@@ -191,12 +266,20 @@ function setupMarquee() {
 }
 
 /* ───────── Frame loop: progress + lyrics ───────── */
+let dbPos = '', dbDur = '';
 function tick() {
   requestAnimationFrame(tick);
-  if (!open || document.hidden || !player.track) return;
+  if (document.hidden || !player.track) return;
   const pos = player.position();
   const d = player.track.duration || 1;
-  if (!scrub) {
+  if (isDesktop() && scrub?.el !== D.progress) { // desktop player bar
+    D.fill.style.transform = `scaleX(${clamp(pos / d, 0, 1)})`;
+    const a = fmtTime(pos), b = fmtTime(d);
+    if (a !== dbPos) { D.pos.textContent = a; dbPos = a; }
+    if (b !== dbDur) { D.dur.textContent = b; dbDur = b; }
+  }
+  if (!open) return;
+  if (scrub?.el !== E.progress) {
     E.fill.style.transform = `scaleX(${clamp(pos / d, 0, 1)})`;
     const a = fmtTime(pos), b = `-${fmtTime(d - pos)}`;
     if (a !== lastPosText) { E.pos.textContent = a; lastPosText = a; }
@@ -208,6 +291,7 @@ function tick() {
 /* ───────── Open / close / modes ───────── */
 export function openNP(m) {
   if (!player.track) return;
+  if (isDesktop() && !m && mode === 'cover') m = 'lyrics'; // on PC the cover is always shown beside the lyrics
   if (m && m !== mode) setMode(m, false);
   if (open) return;
   open = true;
@@ -244,6 +328,8 @@ function closeNow() {
 
 function setMode(m, animate = true) {
   if (m === mode) m = 'cover';
+  if (isDesktop() && m === 'cover') m = 'lyrics'; // the big cover is always visible on PC
+  if (m === mode) return;
   const first = E.artWrap.getBoundingClientRect();
   mode = m;
   np.dataset.mode = m;
@@ -277,7 +363,8 @@ function poke(toggle = false) {
   }
   np.classList.remove('idle');
   clearTimeout(idleTimer);
-  if (mode === 'lyrics' && player.playing && open) idleTimer = setTimeout(() => np.classList.add('idle'), 3800);
+  // on PC the controls live beside the lyrics, so they never need to hide
+  if (mode === 'lyrics' && player.playing && open && !isDesktop()) idleTimer = setTimeout(() => np.classList.add('idle'), 3800);
 }
 
 /* ───────── Queue ───────── */
@@ -292,10 +379,11 @@ function drawQueue(refresh = false) {
 function wireControls() {
   np.addEventListener('click', async e => {
     if (suppressClick) { e.stopPropagation(); e.preventDefault(); return; }
-    const b = e.target.closest('[data-act], #np-close, #np-more, .np-artist, .np-like, .np-context');
+    const b = e.target.closest('[data-act], #np-close, #np-more, .np-artist, .np-like, .np-context, .np-sleep');
     if (!b) return;
     haptic();
     if (b.id === 'np-close') { history.back(); return; }
+    if (b.classList.contains('np-sleep')) { sleepSheet(); return; }
     if (b.id === 'np-more') { npMenu(); return; }
     if (b.classList.contains('np-like')) { player.setLiked(player.track, !player.liked); return; }
     if (b.classList.contains('np-artist')) {
@@ -430,21 +518,21 @@ function wireGestures() {
   np.addEventListener('pointercancel', end);
 }
 
-function wireScrub() {
-  const p = E.progress;
+/** Drag-to-seek on a progress bar (the song screen's, or the desktop player bar's). */
+function wireScrub(p, S) {
   const ratio = e => {
     const r = $('.np-bar', p).getBoundingClientRect();
     return clamp((e.clientX - r.left) / r.width, 0, 1);
   };
   const show = v => {
     const d = player.track?.duration || 0;
-    E.fill.style.transform = `scaleX(${v})`;
-    E.pos.textContent = fmtTime(v * d);
-    E.dur.textContent = `-${fmtTime(d - v * d)}`;
+    S.fill.style.transform = `scaleX(${v})`;
+    S.pos.textContent = fmtTime(v * d);
+    if (S === E) S.dur.textContent = `-${fmtTime(d - v * d)}`;
   };
   p.addEventListener('pointerdown', e => {
     if (!player.track) return;
-    scrub = { id: e.pointerId, v: ratio(e) };
+    scrub = { el: p, id: e.pointerId, v: ratio(e) };
     try { p.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     p.classList.add('drag');
     show(scrub.v);
@@ -460,6 +548,7 @@ function wireScrub() {
     scrub = null;
     p.classList.remove('drag');
     lastPosText = '';
+    dbPos = '';
     player.seek(v * (player.track?.duration || 0));
   };
   p.addEventListener('pointerup', end);

@@ -8,6 +8,7 @@ import { esc, icon, art, artistNames, deviceIcon, store, haptic } from './util.j
 import { pins } from './pins.js';
 import { lib } from './lib.js';
 import { itemArt, itemSub } from './rows.js';
+import { sleepTimer } from './sleeptimer.js';
 
 export const getLyricsOffset = () => Number(store('lumen.lyricsOffset')) || 0;
 
@@ -105,12 +106,47 @@ export function npMenu() {
   if (!t) return;
   const sheet = openSheet(head(t) + linkItems(t)
     + `<button class="sheet-item" data-a="share">${icon('share')}<span class="si-text">Share</span></button>`
+    + `<button class="sheet-item${sleepTimer.active ? ' on' : ''}" data-a="sleep">${icon('moon')}<span class="si-text">Sleep timer${sleepTimer.active ? `<small>${esc(sleepTimer.label())} left</small>` : ''}</span></button>`
     + offsetItem()
     + (t.id ? `<a class="sheet-item" href="spotify:${t.type}:${esc(t.id)}">${icon('open')}<span class="si-text">Open in Spotify</span></a>` : ''));
   wireOffset(sheet);
-  sheet.addEventListener('click', e => {
+  sheet.addEventListener('click', async e => {
     const b = e.target.closest('[data-a]');
-    if (b) handleLink(b, t);
+    if (!b) return;
+    if (b.dataset.a === 'sleep') { history.back(); setTimeout(sleepSheet, 350); return; }
+    handleLink(b, t);
+  });
+}
+
+/* ───────── Sleep timer ───────── */
+const SLEEP_OPTIONS = [[5, '5 minutes'], [15, '15 minutes'], [30, '30 minutes'], [45, '45 minutes'], [60, '1 hour'], [90, '1 hour 30 minutes']];
+
+export function sleepSheet() {
+  const sheet = openSheet('<div class="sheet-title">Sleep timer</div><div class="sl-status"></div>'
+    + SLEEP_OPTIONS.map(([m, l]) => `<button class="sheet-item" data-m="${m}">${icon('moon')}<span class="si-text">${l}</span></button>`).join('')
+    + `<button class="sheet-item" data-m="eot">${icon('music')}<span class="si-text">End of this song</span></button>`
+    + `<button class="sheet-item sl-off" data-m="off">${icon('x')}<span class="si-text">Turn off timer</span></button>`
+    + '<div class="sheet-note">On the phone, keep Lumen open (the lyrics screen is perfect). If Android puts it to sleep in the background, the music pauses as soon as Lumen wakes up again.</div>');
+  const status = sheet.querySelector('.sl-status'), off = sheet.querySelector('.sl-off');
+  const paint = () => {
+    const on = sleepTimer.active;
+    off.classList.toggle('hidden', !on);
+    status.innerHTML = on
+      ? `<div class="sl-now">${icon('moon')}<span>${sleepTimer.endOfTrack ? 'Music pauses when this song ends' : `Music pauses in ${esc(sleepTimer.label())}`}</span></div>`
+      : '';
+  };
+  paint();
+  const unsub = sleepTimer.on(paint);
+  new MutationObserver((m, obs) => { if (!sheet.isConnected) { unsub(); obs.disconnect(); } }).observe(document.getElementById('sheet-root'), { childList: true });
+  sheet.addEventListener('click', e => {
+    const b = e.target.closest('[data-m]');
+    if (!b) return;
+    haptic();
+    const m = b.dataset.m;
+    if (m === 'off') { sleepTimer.cancel(); toast('Sleep timer off'); }
+    else if (m === 'eot') { sleepTimer.startEndOfTrack(); toast('Music will pause when this song ends'); }
+    else { sleepTimer.start(Number(m)); toast(`Sleep timer: ${b.textContent.trim()}`); }
+    closeSheet();
   });
 }
 
@@ -216,6 +252,7 @@ export function settingsSheet() {
   const sheet = openSheet(`<div class="sheet-head"><div class="avatar" style="width:52px;height:52px;font-size:20px">${avatar}</div>`
     + `<div class="row-text"><div class="row-title">${esc(me?.name || 'Listener')}</div><div class="row-sub"><span>${isDemo ? 'Demo mode — sample music' : 'Connected to Spotify'}</span></div></div></div>`
     + `<button class="sheet-item" data-a="home">${icon('home')}<span class="si-text">Edit Home screen<small>Pinned albums, playlists, artists · Liked Songs</small></span></button>`
+    + `<button class="sheet-item${sleepTimer.active ? ' on' : ''}" data-a="sleep">${icon('moon')}<span class="si-text">Sleep timer${sleepTimer.active ? `<small>${esc(sleepTimer.label())} left</small>` : ''}</span></button>`
     + offsetItem()
     + `<button class="sheet-item" data-a="devices">${icon('speaker')}<span class="si-text">Devices</span></button>`
     + `<a class="sheet-item" href="spotify:">${icon('open')}<span class="si-text">Open the Spotify app</span></a>`
@@ -227,6 +264,7 @@ export function settingsSheet() {
     if (!b) return;
     if (b.dataset.a === 'devices') { await closeOverlays(); devicesSheet(); }
     if (b.dataset.a === 'home') { await closeOverlays(); homeEditor(); }
+    if (b.dataset.a === 'sleep') { await closeOverlays(); sleepSheet(); }
     if (b.dataset.a === 'out') {
       store('lumen.demo', null);
       if (!isDemo) auth.logout();
