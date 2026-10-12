@@ -10,6 +10,7 @@ import { lib } from './lib.js';
 import { itemArt, itemSub } from './rows.js';
 import { sleepTimer } from './sleeptimer.js';
 import { VERSION } from './version.js';
+import { onPhone, playOnThisPhone, rememberPhone } from './handoff.js';
 
 export const getLyricsOffset = () => Number(store('lumen.lyricsOffset')) || 0;
 
@@ -62,7 +63,8 @@ export function trackActions(t) {
 }
 
 export async function devicesSheet() {
-  const sheet = openSheet(`<div class="sheet-title">Play on</div><div class="dev-list"><div class="list-foot"><div class="spinner"></div></div></div>`
+  const here = onPhone() ? `<button class="sheet-item ho-item" data-a="here">${icon('phone')}<span class="si-text">Play on this phone<small>Moves the music here — wakes Spotify if it's asleep</small></span></button>` : '';
+  const sheet = openSheet(`<div class="sheet-title">Play on</div>${here}<div class="dev-list"><div class="list-foot"><div class="spinner"></div></div></div>`
     + `<button class="sheet-item" data-a="jam">${icon('users')}<span class="si-text">Join a Jam<small>Listen together with friends</small></span></button>`
     + `<button class="sheet-item" data-a="open">${icon('open')}<span class="si-text">Open the Spotify app<small>Your phone shows up here once Spotify is open</small></span></button>`);
   const list = sheet.querySelector('.dev-list');
@@ -73,6 +75,8 @@ export async function devicesSheet() {
       ? devs.map(d => `<button class="sheet-item${d.active ? ' on' : ''}" data-id="${esc(d.id)}">${icon(deviceIcon(d.type))}`
         + `<span class="si-text">${esc(d.name)}<small>${d.active ? 'Playing now' : esc(d.type)}</small></span>${d.active ? icon('check') : ''}</button>`).join('')
       : '<div class="sheet-note">No devices found. Open Spotify on your phone, computer or speaker.</div>';
+    // already playing on a phone → the shortcut isn't needed
+    if (devs.some(d => d.active && d.type === 'Smartphone')) sheet.querySelector('.ho-item')?.remove();
   } catch {
     list.innerHTML = '<div class="sheet-note">Couldn’t load your devices.</div>';
   }
@@ -80,9 +84,10 @@ export async function devicesSheet() {
     const b = e.target.closest('.sheet-item');
     if (!b) return;
     if (b.dataset.a === 'open') { location.href = 'spotify:'; return; }
+    if (b.dataset.a === 'here') { closeSheet(); playOnThisPhone(); return; }
     if (b.dataset.a === 'jam') { history.back(); setTimeout(jamSheet, 350); return; }
     const d = devs.find(x => x.id === b.dataset.id);
-    if (d && !d.active) { closeSheet(); player.transfer(d); }
+    if (d && !d.active) { closeSheet(); rememberPhone(d); player.transfer(d); }
   });
 }
 
