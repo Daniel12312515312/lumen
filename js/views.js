@@ -1,5 +1,5 @@
 // Home, Search, Library and the playlist / album / liked / artist pages.
-import { $, el, esc, icon, art, artistNames, greeting, debounce, store, haptic, fmtLong } from './util.js';
+import { $, el, esc, icon, setIcon, art, artistNames, greeting, debounce, store, haptic, fmtLong } from './util.js';
 import { sp, isDemo } from './client.js';
 import { player } from './player.js';
 import { go, back } from './nav.js';
@@ -466,7 +466,26 @@ function collectionView(kind, id) {
       + (kind === 'album' ? `<button class="icon-btn" data-a="save" aria-label="Save to library">${icon('heart')}</button>` : '')
       + (kind !== 'liked' ? `<button class="icon-btn" data-a="pin" aria-label="Pin to Home">${icon('pin')}</button>` : '');
     $('.topbar-title', v).textContent = info.name;
+    paintPlay();
   }
+
+  /** Is this playlist / album what Spotify is playing right now (playing or paused)? */
+  function isCurrent() {
+    if (!info || !player.track) return false;
+    const ctx = player.pb?.context?.uri;
+    if (kind === 'liked') return !!ctx?.endsWith(':collection') || (!ctx && tracks.some(t => t.uri === player.track.uri));
+    return ctx === info.uri;
+  }
+
+  /** The big round button shows pause while this collection is playing. */
+  function paintPlay() {
+    const b = $('.ch-play', head);
+    if (!b) return;
+    const on = isCurrent() && player.playing;
+    setIcon(b, on ? 'pause' : 'play');
+    b.setAttribute('aria-label', on ? 'Pause' : 'Play');
+  }
+  player.on(type => { if (v.isConnected && (type === 'state' || type === 'track' || type === 'context')) paintPlay(); });
 
   function paintSave() {
     const b = $('[data-a="save"]', head);
@@ -501,7 +520,7 @@ function collectionView(kind, id) {
   head.addEventListener('click', e => {
     if (!info) return;
     const a = e.target.closest('[data-a]')?.dataset.a;
-    if (a === 'play') play(false);
+    if (a === 'play') { if (isCurrent()) { haptic(); player.toggle(); } else play(false); } // pause / resume if it's already on
     if (a === 'shuffle') play(true);
     if (a === 'save') toggleSave();
     if (e.target.closest('.ch-by') && kind === 'album' && info.artists?.[0]?.id) go(`artist/${info.artists[0].id}`);

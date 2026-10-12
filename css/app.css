@@ -541,7 +541,7 @@ body.np-open #toast { bottom: calc(var(--safe-b) + 150px); }
     background: var(--accent); color: var(--on-accent); box-shadow: 0 8px 22px rgba(0,0,0,.35);
     opacity: 0; transform: translateY(8px); transition: opacity .25s, transform .3s var(--ease); }
   .card.round .card-play { right: 4px; bottom: 4px; }
-  .card-play .i { width: 20px; height: 20px; margin-left: 2px; }
+  .card-play .i { width: 20px; height: 20px; }
   .card:hover .card-play { opacity: 1; transform: translateY(-4px); }
   .card .card-play:hover { transform: translateY(-4px) scale(1.07); }
   .icon-btn:hover, .ctl:hover, .mini-btn:hover, .row-more:hover { background: rgba(255,255,255,.08); }
@@ -690,7 +690,7 @@ body.np-open #toast { bottom: calc(var(--safe-b) + 150px); }
 .ch-actions { display: flex; align-items: center; gap: 4px; min-height: 56px; margin-top: 18px; }
 .ch-play { width: 56px; height: 56px; margin-right: 10px; border-radius: 50%; display: grid; place-items: center; flex: none;
   background: var(--accent); color: var(--on-accent); box-shadow: 0 10px 26px rgba(0,0,0,.3); transition: transform .22s var(--spring); }
-.ch-play .i { width: 26px; height: 26px; margin-left: 3px; }
+.ch-play .i { width: 26px; height: 26px; }
 .ch-play:active { transform: scale(.92); }
 .ch-actions .icon-btn .i { width: 24px; height: 24px; color: var(--text-2); transition: color .3s; }
 .ch-actions .icon-btn.on .i { color: var(--accent); }
@@ -715,3 +715,39 @@ body.np-open #toast { bottom: calc(var(--safe-b) + 150px); }
 .jam-row .jam-paste { flex: none; margin: 0; height: 48px; padding: 0 16px; border-radius: 12px; background: rgba(255,255,255,.08); color: var(--text); }
 .jam-error { margin-top: 8px; font-size: 13px; color: #ff9a9a; }
 .jam-join { margin-top: 14px; }
+/* ───────── Hover play / pause on a song's picture ───────── */
+.row-hover { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .row-hover { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; border-radius: 8px; color: #fff; opacity: 0; transition: opacity .15s; cursor: pointer; }
+  .row-art-wrap .row-hover { background: rgba(0,0,0,.5); }
+  .row-hover .i { width: 22px; height: 22px; }
+  .row-num .row-hover .i { width: 18px; height: 18px; }
+  .row:hover .row-hover { opacity: 1; }
+  .row:hover .eq, .row:hover .row-num span { visibility: hidden; }
+  /* play and pause sit on top of each other and cross-fade with a little spin */
+  .row-hover > .i { grid-area: 1 / 1; transition: opacity .2s ease, transform .35s var(--spring); }
+  .row-hover .rh-pause { opacity: 0; transform: scale(.5) rotate(-30deg); }
+  body:not(.is-paused) .row.playing .row-hover .rh-play { opacity: 0; transform: scale(.5) rotate(30deg); }
+  body:not(.is-paused) .row.playing .row-hover .rh-pause { opacity: 1; transform: none; }
+}
+/* ───────── Icon switch animation (play ⇄ pause, repeat, like, volume) ───────── */
+.icon-swap { animation: icon-swap .38s var(--spring) both; }
+@keyframes icon-swap { from { opacity: 0; transform: scale(.5) rotate(-35deg); } }
+@media (prefers-reduced-motion: reduce) { .icon-swap { animation: none; } }
+
+/* ───────── Desktop volume ───────── */
+.db-vol { display: none; }
+@media (min-width: 1000px) {
+  .db-vol { display: flex; align-items: center; gap: 2px; width: 132px; flex: none; }
+  .db-vbar { flex: 1; padding: 10px 0; cursor: pointer; touch-action: none; }
+  .db-vbar .np-bar { height: 4px; }
+  .db-vbar:hover .np-bar, .db-vbar.drag .np-bar { height: 6px; }
+  .db-vbar .db-vfill { background: #fff; }
+  .db-vbar:hover .db-vfill, .db-vbar.drag .db-vfill { background: var(--accent); }
+  .db-vol.locked { opacity: .4; }
+  .db-vol.locked .db-vbar { cursor: not-allowed; }
+  .db-right .np-device { max-width: 120px; }
+}
+@media (min-width: 1000px) and (max-width: 1360px) {
+  .db-right .np-device span { display: none; }
+}

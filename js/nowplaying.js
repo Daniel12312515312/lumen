@@ -1,5 +1,5 @@
 // Mini player + full Now Playing sheet (cover ⇄ lyrics ⇄ queue), gestures and progress.
-import { $, $$, esc, icon, fmtTime, artistNames, clamp, haptic, store, deviceIcon } from './util.js';
+import { $, $$, esc, icon, setIcon, fmtTime, artistNames, clamp, haptic, store, deviceIcon } from './util.js';
 import { player } from './player.js';
 import { background } from './background.js';
 import { LyricsView, fetchLyrics } from './lyrics.js';
@@ -20,6 +20,7 @@ const D = {
   play: $('[data-act="toggle"]', dbar), shuffle: $('[data-act="shuffle"]', dbar), repeat: $('[data-act="repeat"]', dbar),
   fill: $('.db-fill', dbar), pos: $('.db-pos', dbar), dur: $('.db-dur', dbar), progress: $('.db-progress', dbar),
   device: $('.np-device', dbar), sleep: $('.db-sleep', dbar), lyrics: $('[data-act="lyrics"]', dbar), queue: $('[data-act="queue"]', dbar),
+  vol: $('.db-vol', dbar), vbar: $('.db-vbar', dbar), vfill: $('.db-vfill', dbar), mute: $('.db-mute', dbar),
 };
 const npSleep = $('.np-sleep', np);
 const E = {
@@ -97,8 +98,50 @@ function paintSleep() {
   D.sleep.classList.toggle('on', on);
 }
 
+/* ───────── Desktop volume ───────── */
+let volBeforeMute = 50, volDrag = null;
+function paintVolume() {
+  const d = player.pb?.device;
+  const v = d?.volume ?? 0;
+  if (!volDrag) D.vfill.style.transform = `scaleX(${v / 100})`;
+  setIcon(D.mute, v === 0 ? 'volumeOff' : v < 50 ? 'volumeLow' : 'volume');
+  const locked = !!d && d.supportsVolume === false;
+  D.vol.classList.toggle('locked', locked);
+  D.vbar.title = locked ? 'This device doesn’t allow volume control from apps' : `Volume ${v}%`;
+}
+function wireVolume() {
+  const ratio = e => {
+    const r = $('.np-bar', D.vbar).getBoundingClientRect();
+    return clamp((e.clientX - r.left) / r.width, 0, 1);
+  };
+  const set = e => { const v = Math.round(ratio(e) * 100); D.vfill.style.transform = `scaleX(${v / 100})`; player.setVolume(v); };
+  D.vbar.addEventListener('pointerdown', e => {
+    if (!player.pb?.device) return;
+    volDrag = e.pointerId;
+    try { D.vbar.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    D.vbar.classList.add('drag');
+    set(e);
+  });
+  D.vbar.addEventListener('pointermove', e => { if (volDrag === e.pointerId) set(e); });
+  const end = e => { if (volDrag !== e.pointerId) return; volDrag = null; D.vbar.classList.remove('drag'); };
+  D.vbar.addEventListener('pointerup', end);
+  D.vbar.addEventListener('pointercancel', end);
+  // mouse wheel / trackpad over the volume nudges it by 5%
+  D.vol.addEventListener('wheel', e => {
+    e.preventDefault();
+    player.setVolume((player.pb?.device?.volume ?? 0) - Math.sign(e.deltaY) * 5);
+  }, { passive: false });
+  D.mute.addEventListener('click', () => {
+    const v = player.pb?.device?.volume ?? 0;
+    if (v > 0) { volBeforeMute = v; player.setVolume(0); } else player.setVolume(volBeforeMute || 50);
+  });
+  player.on(type => { if (type === 'volume' || type === 'state') paintVolume(); });
+  paintVolume();
+}
+
 /** Desktop player bar. */
 function wireDbar() {
+  wireVolume();
   dbar.addEventListener('click', e => {
     const b = e.target.closest('[data-act], .db-like');
     if (!b) return;
@@ -213,7 +256,7 @@ async function loadLyrics(t) {
 function updateLike() {
   const on = !!player.liked;
   for (const b of [E.like, D.like]) {
-    b.innerHTML = icon(on ? 'heartFill' : 'heart');
+    setIcon(b, on ? 'heartFill' : 'heart');
     b.classList.toggle('on', on);
   }
 }
@@ -232,17 +275,15 @@ function updateState() {
   const key = `${playing}|${pb?.shuffle}|${pb?.repeat}|${pb?.device?.id}|${pb?.device?.name}`;
   if (key !== lastStateKey) {
     lastStateKey = key;
-    const pi = icon(playing ? 'pause' : 'play');
-    E.play.innerHTML = pi;
-    E.miniToggle.innerHTML = pi;
-    D.play.innerHTML = pi;
+    const pi = playing ? 'pause' : 'play';
+    for (const b of [E.play, E.miniToggle, D.play]) setIcon(b, pi);
     np.classList.toggle('paused', !playing);
     document.body.classList.toggle('is-paused', !playing);
-    const rep = icon(pb?.repeat === 'track' ? 'repeatOne' : 'repeat');
+    const rep = pb?.repeat === 'track' ? 'repeatOne' : 'repeat';
     for (const s of [E, D]) {
       s.shuffle.classList.toggle('on', !!pb?.shuffle);
       s.repeat.classList.toggle('on', !!pb?.repeat && pb.repeat !== 'off');
-      s.repeat.innerHTML = rep;
+      setIcon(s.repeat, rep);
     }
     const d = pb?.device;
     const dev = `${icon(deviceIcon(d?.type))}<span>${esc(d ? d.name : 'Devices')}</span>`;

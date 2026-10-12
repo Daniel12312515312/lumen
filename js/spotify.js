@@ -176,6 +176,7 @@ export const spotify = {
   seek(ms, deviceId) { return req('PUT', '/me/player/seek', { query: { position_ms: ms, device_id: deviceId } }); },
   shuffle(state, deviceId) { return req('PUT', '/me/player/shuffle', { query: { state, device_id: deviceId } }); },
   repeat(state, deviceId) { return req('PUT', '/me/player/repeat', { query: { state, device_id: deviceId } }); },
+  volume(percent, deviceId) { return req('PUT', '/me/player/volume', { query: { volume_percent: percent, device_id: deviceId } }); },
   addToQueue(uri, deviceId) { return req('POST', '/me/player/queue', { query: { uri, device_id: deviceId } }); },
   transfer(id, play = true) { return req('PUT', '/me/player', { body: { device_ids: [id], play } }); },
 

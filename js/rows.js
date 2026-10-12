@@ -2,11 +2,14 @@
 import { esc, icon, art, artistNames, EQ } from './util.js';
 import { player } from './player.js';
 
+// play / pause shown over a song's picture (or number) when hovering with a mouse
+const HOVER = `<span class="row-hover" aria-hidden="true">${icon('play', 'rh-play')}${icon('pause', 'rh-pause')}</span>`;
+
 export function trackRow(t, i, { num = false } = {}) {
   if (!t) return '';
   const lead = num
-    ? `<div class="row-num"><span>${t.trackNumber || i + 1}</span>${EQ}</div>`
-    : `<div class="row-art-wrap">${art(t.album?.image, 'row-art')}${EQ}</div>`;
+    ? `<div class="row-num"><span>${t.trackNumber || i + 1}</span>${EQ}${HOVER}</div>`
+    : `<div class="row-art-wrap">${art(t.album?.image, 'row-art')}${EQ}${HOVER}</div>`;
   return `<div class="row track${t.isPlayable === false ? ' dim' : ''}" data-i="${i}" data-uri="${esc(t.uri)}">${lead}`
     + `<div class="row-text"><div class="row-title">${esc(t.name)}</div>`
     + `<div class="row-sub">${t.explicit ? '<span class="explicit">E</span>' : ''}<span>${esc(artistNames(t))}</span></div></div>`

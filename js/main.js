@@ -127,6 +127,14 @@ function wireKeys() {
     e.stopPropagation();
     player.playContext(b.dataset.uri);
   }, true);
+  // the hover button on the song that's already playing pauses / resumes it instead of restarting
+  document.addEventListener('click', e => {
+    const h = e.target.closest('.row-hover');
+    if (!h || !h.closest('.row')?.classList.contains('playing')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    player.toggle();
+  }, true);
 }
 
 /* ───────── Setup ───────── */

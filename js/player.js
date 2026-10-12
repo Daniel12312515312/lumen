@@ -70,6 +70,8 @@ export const player = {
     }
     const pos = pb.progress + (pb.isPlaying ? Math.min(rtt, 1500) / 2 : 0);
     const same = prevUri === pb.item.uri;
+    // right after the volume was dragged, keep our value until Spotify's state catches up
+    if (pb.device && this.pb?.device && performance.now() - (this.volAt || 0) < 2500) pb.device.volume = this.pb.device.volume;
     this.pb = pb;
     if (!same || pb.isPlaying !== wasPlaying || Math.abs(pos - predicted) > 450) {
       this.basePos = pos;
@@ -145,6 +147,23 @@ export const player = {
     const playing = this.playing;
     return this.act(id => (playing ? sp.pause(id) : sp.play({ deviceId: id })), { optimistic: { isPlaying: !playing } });
   },
+  /** Volume 0–100: the slider updates at once, Spotify gets at most ~4 updates a second. */
+  setVolume(percent) {
+    const v = Math.max(0, Math.min(100, Math.round(percent)));
+    if (!this.pb?.device) return;
+    this.pb = { ...this.pb, device: { ...this.pb.device, volume: v } };
+    this.volAt = performance.now();
+    this.emit('volume');
+    clearTimeout(this.volTimer);
+    const send = () => {
+      this.volSentAt = performance.now();
+      sp.volume(this.pb.device.volume).catch(e => {
+        if (e.status === 403) toast('This device doesn’t allow volume control from apps');
+        else this.handleError(e);
+      });
+    };
+    if (performance.now() - (this.volSentAt || 0) > 250) send(); else this.volTimer = setTimeout(send, 250);
+  },
   pause() {
     if (!this.playing) return Promise.resolve();
     return this.act(id => sp.pause(id), { optimistic: { isPlaying: false } });
@@ -179,12 +198,19 @@ export const player = {
     return this.act(async id => {
       if (shuffle !== undefined && shuffle !== !!this.pb?.shuffle) await sp.shuffle(shuffle, id).catch(() => {});
       await sp.play({ contextUri, offsetUri, offsetPosition, deviceId: id });
-    }, { optimistic: track ? { item: track, progress: 0, isPlaying: true, ...(shuffle !== undefined ? { shuffle } : {}) } : undefined });
+    }, {
+      optimistic: {
+        isPlaying: true,
+        context: { uri: contextUri, type: contextUri.split(':')[1] },
+        ...(track ? { item: track, progress: 0 } : {}),
+        ...(shuffle !== undefined ? { shuffle } : {}),
+      },
+    });
   },
   playUris(tracks, index = 0) {
     const slice = tracks.slice(index, index + 100);
     return this.act(id => sp.play({ uris: slice.map(t => t.uri), deviceId: id }), {
-      optimistic: { item: slice[0], progress: 0, isPlaying: true },
+      optimistic: { item: slice[0], progress: 0, isPlaying: true, context: null },
     });
   },
   /** Liked Songs: try the collection context, fall back to a list of URIs. */
@@ -197,7 +223,7 @@ export const player = {
         try { await sp.play({ contextUri: uri, offsetUri: tracks[index]?.uri, deviceId: id }); return; } catch (e) { if (isNoDevice(e)) throw e; }
       }
       await sp.play({ uris: slice.map(t => t.uri), deviceId: id });
-    }, { optimistic: { item: tracks[index], progress: 0, isPlaying: true } });
+    }, { optimistic: { item: tracks[index], progress: 0, isPlaying: true, context: uri ? { uri, type: 'collection' } : null } });
   },
   async addToQueue(track) {
     try {

@@ -244,7 +244,7 @@ export function createMock() {
       if (!item) return null;
       return {
         isPlaying: S.playing, progress: Math.min(pos(), item.duration), item, shuffle: S.shuffle, repeat: S.repeat,
-        device: { ...S.device }, context: S.context,
+        device: { ...S.device, volume: S.volume ?? 70, supportsVolume: true }, context: S.context,
       };
     },
     async queue() { await lag(); settle(); return { current: S.list[S.idx], queue: S.list.slice(S.idx + 1, S.idx + 21) }; },
@@ -278,6 +278,7 @@ export function createMock() {
     async seek(ms) { await lag(); S.base = ms; S.at = Date.now(); },
     async shuffle(v) { await lag(); S.shuffle = v; },
     async repeat(v) { await lag(); S.repeat = v; },
+    async volume(v) { await lag(); S.volume = v; },
     async addToQueue(uri) { await lag(); const t = trackFromUri(uri); if (t) S.list.splice(S.idx + 1, 0, t); },
     async transfer(id) { await lag(); S.device = devices.find(d => d.id === id) || S.device; },
     async libraryContains(uris) { await lag(); return uris.map(u => liked.has(u)); },
