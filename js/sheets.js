@@ -9,6 +9,7 @@ import { pins } from './pins.js';
 import { lib } from './lib.js';
 import { itemArt, itemSub } from './rows.js';
 import { sleepTimer } from './sleeptimer.js';
+import { VERSION } from './version.js';
 
 export const getLyricsOffset = () => Number(store('lumen.lyricsOffset')) || 0;
 
@@ -257,7 +258,7 @@ export function settingsSheet() {
     + `<button class="sheet-item" data-a="devices">${icon('speaker')}<span class="si-text">Devices</span></button>`
     + `<a class="sheet-item" href="spotify:">${icon('open')}<span class="si-text">Open the Spotify app</span></a>`
     + `<button class="sheet-item" data-a="out">${icon('logout')}<span class="si-text">${isDemo ? 'Exit demo' : 'Sign out'}</span></button>`
-    + '<div class="sheet-note">Lumen · lyrics by LRCLIB · not affiliated with Spotify</div>');
+    + `<div class="sheet-note">Lumen ${esc(VERSION)} · lyrics by LRCLIB · not affiliated with Spotify</div>`);
   wireOffset(sheet);
   sheet.addEventListener('click', async e => {
     const b = e.target.closest('[data-a]');

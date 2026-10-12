@@ -200,7 +200,16 @@ function start() {
 
 async function boot() {
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    // a new version took over → reload once so the whole app runs the new code
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController && !reloaded && !$('#np.open')) { reloaded = true; location.reload(); }
+    });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+      // apps on a phone stay alive for days: look for a new version whenever Lumen comes back
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    }).catch(() => {});
   }
   background.init();
   const params = new URLSearchParams(location.search);
