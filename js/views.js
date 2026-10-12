@@ -1,5 +1,5 @@
 // Home, Search, Library and the playlist / album / liked / artist pages.
-import { $, el, esc, icon, art, artistNames, greeting, debounce, store, haptic } from './util.js';
+import { $, el, esc, icon, art, artistNames, greeting, debounce, store, haptic, fmtLong } from './util.js';
 import { sp, isDemo } from './client.js';
 import { player } from './player.js';
 import { go, back } from './nav.js';
@@ -84,7 +84,8 @@ function playTrackInContext(t) {
 function homeView() {
   const v = el(`<div class="view home">
     <header class="page-head"><h1 class="page-title">${greeting()}</h1>
-      <button class="avatar" aria-label="Settings">${icon('settings')}</button></header>
+      <div class="head-actions"><button class="icon-btn home-edit" aria-label="Edit Home screen">${icon('pencil')}</button>
+      <button class="avatar" aria-label="Settings">${icon('settings')}</button></div></header>
     <div class="install-slot"></div>
     <div class="home-body"><div class="shortcuts">${'<div class="shortcut sk"></div>'.repeat(8)}</div>
       <div class="sec-h"><h2>Recently played</h2></div>${skCards(4)}</div></div>`);
@@ -92,6 +93,7 @@ function homeView() {
   const avatar = $('.avatar', v);
   mountInstall($('.install-slot', v));
   avatar.onclick = () => settingsSheet();
+  $('.home-edit', v).onclick = () => { haptic(); homeEditor(); };
   let data = null, loadedAt = 0;
 
   async function load() {
@@ -136,7 +138,7 @@ function homeView() {
 
   function render() {
     const d = data;
-    body.innerHTML = `<div class="sc-head"><span>Quick access</span><button class="sc-edit">Edit</button></div><div class="sc-wrap"></div>`
+    body.innerHTML = `<div class="sc-wrap"></div>`
       + (d.recent.length ? `<div class="sec-h"><h2>Recently played</h2></div><div class="hscroll" data-k="recent">${d.recent.map((x, i) => card({ ...x.track, image: x.track.album.image }, i, artistNames(x.track))).join('')}</div>` : '')
       + (d.artists.length ? `<div class="sec-h"><h2>Your top artists</h2></div><div class="hscroll" data-k="artists">${d.artists.slice(0, 12).map((a, i) => card(a, i, '')).join('')}</div>` : '');
     renderShortcuts();
@@ -146,7 +148,7 @@ function homeView() {
 
   body.addEventListener('click', e => {
     if (!data) return;
-    if (e.target.closest('.sc-edit, .sc-empty')) { haptic(); homeEditor(); return; }
+    if (e.target.closest('.sc-empty')) { haptic(); homeEditor(); return; }
     const sc = e.target.closest('.shortcut');
     if (sc) { haptic(); openItem(data.shortcuts[Number(sc.dataset.i)]); return; }
     const c = e.target.closest('.card');
@@ -398,14 +400,17 @@ function libraryView() {
 /* ───────── Playlist / Album / Liked Songs ───────── */
 function collectionView(kind, id) {
   const v = el(`<div class="view coll has-topbar">
-    <div class="topbar"><button class="icon-btn back" aria-label="Back">${icon('chevLeft')}</button><div class="topbar-title"></div>
-      <button class="icon-btn pinb hidden" aria-label="Pin to Home">${icon('pin')}</button>
-      <button class="icon-btn save hidden" aria-label="Save">${icon('heart')}</button></div>
-    <div class="hero"><div class="hero-art sk"></div><div class="sk sk-line" style="width:50%;height:22px;margin-top:24px"></div>
-      <div class="sk sk-line" style="width:32%;margin-top:12px"></div></div>
+    <div class="topbar"><button class="icon-btn back" aria-label="Back">${icon('chevLeft')}</button><div class="topbar-title"></div><span class="topbar-gap"></span></div>
+    <div class="ch">
+      <div class="ch-bg"></div>
+      <div class="ch-top"><div class="ch-art sk"></div><div class="ch-info"><div class="sk sk-line" style="width:40%"></div>
+        <div class="sk sk-line" style="width:85%;height:24px;margin-top:10px"></div><div class="sk sk-line" style="width:60%;margin-top:10px"></div></div></div>
+      <div class="ch-desc hidden"></div>
+      <div class="ch-actions"></div>
+    </div>
     <div class="tracklist">${skRows(6)}</div><div class="list-foot"></div></div>`);
-  wireTopbar(v, 250);
-  const hero = $('.hero', v), list = $('.tracklist', v), foot = $('.list-foot', v), saveBtn = $('.save', v);
+  wireTopbar(v, 200);
+  const head = $('.ch', v), list = $('.tracklist', v), foot = $('.list-foot', v);
   let info = null, tracks = [], next = null, pager = null, loading = false, saved = false;
 
   async function load() {
@@ -424,42 +429,61 @@ function collectionView(kind, id) {
         pager = o => sp.albumTracks(id, o, info.ref || info);
       }
     } catch (e) {
-      hero.innerHTML = '';
+      $('.ch-top', v).innerHTML = '';
       list.innerHTML = errorBox(e.message);
       list.querySelector('[data-retry]').onclick = () => { list.innerHTML = skRows(6); load(); };
       return;
     }
-    renderHero();
-    if (kind !== 'liked') wirePin($('.pinb', v), info);
+    renderHead();
+    if (kind !== 'liked') wirePin($('[data-a="pin"]', head), info);
     if (kind === 'playlist' && !info.firstPage) {
       list.innerHTML = '<div class="note-card glass-card"><b>Song list not available</b><br>Spotify only lets apps show the songs of playlists you created. You can still play or shuffle this playlist.</div>';
     } else {
       list.innerHTML = tracks.map((t, i) => trackRow(t, i, { num: kind === 'album' })).join('') || '<div class="empty">No songs yet.</div>';
       markPlaying(list);
     }
-    if (kind === 'album') {
-      saveBtn.classList.remove('hidden');
-      sp.libraryContains([info.uri]).then(([v2]) => { saved = !!v2; paintSave(); }).catch(() => {});
-    }
+    if (kind === 'album') sp.libraryContains([info.uri]).then(([v2]) => { saved = !!v2; paintSave(); }).catch(() => {});
     observe();
   }
 
-  function renderHero() {
-    const by = kind === 'album' ? artistNames(info) : kind === 'playlist' ? info.owner : (player.me?.name || '');
+  /** Header: blurred cover behind, cover + title on the left, round play button + icons below. */
+  function renderHead() {
     const count = info.total ?? tracks.length;
-    const sub = kind === 'album'
-      ? [info.albumType === 'single' ? 'Single' : 'Album', info.year, `${count} songs`].filter(Boolean).join(' · ')
-      : `${count} songs`;
-    hero.innerHTML = (kind === 'liked' ? `<div class="hero-art liked-art">${icon('heartFill')}</div>` : art(info.imageLarge || info.image, 'hero-art'))
-      + `<div class="hero-text"><h1>${esc(info.name)}</h1>${by ? `<button class="hero-by">${esc(by)}</button>` : ''}<div class="hero-sub">${esc(sub)}</div>`
-      + (info.description ? `<div class="hero-desc">${esc(info.description)}</div>` : '')
-      + `<div class="hero-actions"><button class="pill-btn" data-a="play">${icon('play')}Play</button><button class="pill-btn" data-a="shuffle">${icon('shuffle')}Shuffle</button></div></div>`;
+    const minutes = count && tracks.length >= count ? fmtLong(tracks.reduce((s, t) => s + (t.duration || 0), 0)) : '';
+    const kindLabel = kind === 'album' ? ({ single: 'Single', compilation: 'Compilation' }[info.albumType] || 'Album') : 'Playlist';
+    const by = kind === 'album' ? artistNames(info) : kind === 'playlist' ? info.owner : (player.me?.name || '');
+    const meta = [by ? `<b class="ch-by">${esc(by)}</b>` : '', kind === 'album' ? esc(info.year || '') : '',
+      count != null ? `${count} song${count === 1 ? '' : 's'}` : '', minutes].filter(Boolean).join(' · ');
+    const cover = info.imageLarge || info.image;
+    $('.ch-bg', v).innerHTML = kind === 'liked' ? '<div class="liked-bg"></div>' : (cover ? `<img src="${esc(cover)}" alt="">` : '');
+    $('.ch-top', v).innerHTML = (kind === 'liked' ? `<div class="ch-art liked-art">${icon('heartFill')}</div>` : art(cover, 'ch-art'))
+      + `<div class="ch-info"><div class="ch-kind">${kindLabel}</div><h1>${esc(info.name)}</h1><div class="ch-meta">${meta}</div></div>`;
+    const desc = $('.ch-desc', v);
+    desc.textContent = info.description || '';
+    desc.classList.toggle('hidden', !info.description);
+    $('.ch-actions', v).innerHTML = `<button class="ch-play" data-a="play" aria-label="Play">${icon('play')}</button>`
+      + `<button class="icon-btn" data-a="shuffle" aria-label="Shuffle">${icon('shuffle')}</button>`
+      + (kind === 'album' ? `<button class="icon-btn" data-a="save" aria-label="Save to library">${icon('heart')}</button>` : '')
+      + (kind !== 'liked' ? `<button class="icon-btn" data-a="pin" aria-label="Pin to Home">${icon('pin')}</button>` : '');
     $('.topbar-title', v).textContent = info.name;
   }
 
   function paintSave() {
-    saveBtn.innerHTML = icon(saved ? 'heartFill' : 'heart');
-    saveBtn.classList.toggle('on', saved);
+    const b = $('[data-a="save"]', head);
+    if (!b) return;
+    b.innerHTML = icon(saved ? 'heartFill' : 'heart');
+    b.classList.toggle('on', saved);
+  }
+
+  async function toggleSave() {
+    haptic();
+    saved = !saved;
+    paintSave();
+    try {
+      if (saved) await sp.librarySave([info.uri]); else await sp.libraryRemove([info.uri]);
+      toast(saved ? 'Saved to your library' : 'Removed from your library');
+      lib.invalidate('al');
+    } catch (err) { saved = !saved; paintSave(); player.handleError(err); }
   }
 
   function play(shuffle) {
@@ -474,21 +498,13 @@ function collectionView(kind, id) {
     });
   }
 
-  hero.addEventListener('click', e => {
+  head.addEventListener('click', e => {
+    if (!info) return;
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'play') play(false);
     if (a === 'shuffle') play(true);
-    if (e.target.closest('.hero-by') && kind === 'album' && info.artists?.[0]?.id) go(`artist/${info.artists[0].id}`);
-  });
-  saveBtn.addEventListener('click', async () => {
-    haptic();
-    saved = !saved;
-    paintSave();
-    try {
-      if (saved) await sp.librarySave([info.uri]); else await sp.libraryRemove([info.uri]);
-      toast(saved ? 'Saved to your library' : 'Removed from your library');
-      lib.invalidate('al');
-    } catch (err) { saved = !saved; paintSave(); player.handleError(err); }
+    if (a === 'save') toggleSave();
+    if (e.target.closest('.ch-by') && kind === 'album' && info.artists?.[0]?.id) go(`artist/${info.artists[0].id}`);
   });
   wireTracks(list, () => tracks, (i, t) => {
     if (kind === 'liked') player.playLiked(tracks, i);
