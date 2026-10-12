@@ -123,13 +123,17 @@ export function icon(name, cls = '') {
 
 export const EQ = '<span class="eq"><i></i><i></i><i></i></span>';
 
-/** Put an icon in a button; when it changes (play → pause…) the new one springs in. */
+/** Put an icon in a button; when it changes (play → pause…) the two cross-fade softly. */
 export function setIcon(el, name) {
   if (!el || el.dataset.icon === name) return;
-  const first = !el.dataset.icon;
+  const old = el.dataset.icon ? el.querySelector(':scope > .i:not(.icon-out)') : null;
   el.dataset.icon = name;
-  el.innerHTML = icon(name);
-  if (!first) el.firstElementChild.classList.add('icon-swap');
+  el.querySelectorAll(':scope > .icon-out').forEach(n => n.remove());
+  if (!old) { el.innerHTML = icon(name); return; }
+  old.classList.add('icon-out');
+  old.addEventListener('animationend', () => old.remove(), { once: true });
+  setTimeout(() => old.remove(), 400);
+  el.insertAdjacentHTML('beforeend', icon(name, 'icon-in'));
 }
 
 export function deviceIcon(type) {

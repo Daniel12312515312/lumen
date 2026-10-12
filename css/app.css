@@ -725,15 +725,19 @@ body.np-open #toast { bottom: calc(var(--safe-b) + 150px); }
   .row:hover .row-hover { opacity: 1; }
   .row:hover .eq, .row:hover .row-num span { visibility: hidden; }
   /* play and pause sit on top of each other and cross-fade with a little spin */
-  .row-hover > .i { grid-area: 1 / 1; transition: opacity .2s ease, transform .35s var(--spring); }
-  .row-hover .rh-pause { opacity: 0; transform: scale(.5) rotate(-30deg); }
-  body:not(.is-paused) .row.playing .row-hover .rh-play { opacity: 0; transform: scale(.5) rotate(30deg); }
+  .row-hover > .i { grid-area: 1 / 1; transition: opacity .25s ease, transform .32s cubic-bezier(.2,.8,.2,1); }
+  .row-hover .rh-pause { opacity: 0; transform: scale(.82); }
+  body:not(.is-paused) .row.playing .row-hover .rh-play { opacity: 0; transform: scale(.82); }
   body:not(.is-paused) .row.playing .row-hover .rh-pause { opacity: 1; transform: none; }
 }
 /* ───────── Icon switch animation (play ⇄ pause, repeat, like, volume) ───────── */
-.icon-swap { animation: icon-swap .38s var(--spring) both; }
-@keyframes icon-swap { from { opacity: 0; transform: scale(.5) rotate(-35deg); } }
-@media (prefers-reduced-motion: reduce) { .icon-swap { animation: none; } }
+/* old and new icon share the button's grid cell: one fades down, the other fades up */
+.icon-in, .icon-out { grid-area: 1 / 1; }
+.icon-in { animation: icon-in .32s cubic-bezier(.2,.8,.2,1) both; }
+.icon-out { animation: icon-out .22s ease-out both; pointer-events: none; }
+@keyframes icon-in { from { opacity: 0; transform: scale(.82); } }
+@keyframes icon-out { to { opacity: 0; transform: scale(.82); } }
+@media (prefers-reduced-motion: reduce) { .icon-in, .icon-out { animation-duration: 1ms; } }
 
 /* ───────── Desktop volume ───────── */
 .db-vol { display: none; }
@@ -751,3 +755,4 @@ body.np-open #toast { bottom: calc(var(--safe-b) + 150px); }
 @media (min-width: 1000px) and (max-width: 1360px) {
   .db-right .np-device span { display: none; }
 }
+.icon-btn.on .i.icon-out { animation: icon-out .22s ease-out both; } /* the like "pop" must not hold the old heart back */

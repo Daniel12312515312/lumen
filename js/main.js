@@ -127,10 +127,11 @@ function wireKeys() {
     e.stopPropagation();
     player.playContext(b.dataset.uri);
   }, true);
-  // the hover button on the song that's already playing pauses / resumes it instead of restarting
+  // the song that's already playing: clicking / tapping it (or its hover button) pauses or
+  // resumes instead of restarting it — on the phone and the PC alike
   document.addEventListener('click', e => {
-    const h = e.target.closest('.row-hover');
-    if (!h || !h.closest('.row')?.classList.contains('playing')) return;
+    const row = e.target.closest('.row.track.playing');
+    if (!row || e.target.closest('.row-more')) return;
     e.preventDefault();
     e.stopPropagation();
     player.toggle();
