@@ -358,8 +358,8 @@ body.is-paused .eq i { animation-play-state: paused; }
 .w.split { background: none; text-shadow: none; }
 
 .ly-interlude { padding: 6px 0; height: 50px; }
-.ly-dots { display: flex; gap: 10px; height: 38px; align-items: center; transform-origin: left center; transform: scale(0); transition: transform .5s var(--ease); }
-.ly-line[dir="rtl"] .ly-dots, .lyrics.rtl .ly-dots { transform-origin: right center; justify-content: flex-end; }
+.ly-dots { display: flex; gap: 10px; height: 38px; align-items: center; opacity: 0; transition: opacity .5s ease; }
+.ly-line[dir="rtl"] .ly-dots, .lyrics.rtl .ly-dots { justify-content: flex-end; }
 .ly-dots i { width: 13px; height: 13px; border-radius: 50%; background: #fff; opacity: .3; }
 .ly-interlude.active .ly-dots { transition: none; }
 
@@ -707,3 +707,11 @@ body.np-open #toast { bottom: calc(var(--safe-b) + 150px); }
   .ch-desc { max-width: 720px; }
   .ch-actions { margin-top: 24px; }
 }
+/* ───────── Jam ───────── */
+.jam-box { padding: 0 20px 8px; }
+.jam-box p { margin: 0 0 14px; font-size: 14px; line-height: 1.5; color: var(--text-2); }
+.jam-row { display: flex; align-items: center; gap: 8px; }
+.jam-row .text-input { flex: 1; min-width: 0; margin-top: 0; }
+.jam-row .jam-paste { flex: none; margin: 0; height: 48px; padding: 0 16px; border-radius: 12px; background: rgba(255,255,255,.08); color: var(--text); }
+.jam-error { margin-top: 8px; font-size: 13px; color: #ff9a9a; }
+.jam-join { margin-top: 14px; }

@@ -434,7 +434,7 @@ export class LyricsView {
   }
 
   reset(it) {
-    if (it.dotsEl) { it.dotsEl.style.transform = ''; it.dots.forEach(d => { d.style.opacity = ''; }); }
+    if (it.dotsEl) { it.dotsEl.style.opacity = ''; it.dots.forEach(d => { d.style.opacity = ''; }); }
   }
 
   /** Called every animation frame with the current song position (ms). */
@@ -511,10 +511,10 @@ export class LyricsView {
   animDots(it, t) {
     const { start, end } = it.L;
     const p = clamp((t - start) / Math.max(1, end - start), 0, 1);
+    // still dots: they only fade in/out and light up one by one as the break goes on
     const appear = easeOut(clamp((t - start) / 500, 0, 1));
     const vanish = 1 - easeOut(clamp((t - (end - 500)) / 500, 0, 1));
-    const breathe = 1 + .1 * Math.sin(((t - start) / 1000) * Math.PI * 1.5);
-    it.dotsEl.style.transform = `scale(${(appear * vanish * breathe).toFixed(3)})`;
+    it.dotsEl.style.opacity = (appear * vanish).toFixed(3);
     it.dots.forEach((d, k) => { d.style.opacity = (.28 + .72 * clamp(p * 3 - k, 0, 1)).toFixed(3); });
   }
 

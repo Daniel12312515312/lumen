@@ -1,7 +1,7 @@
 // Network-first service worker: always the latest version when online, still opens offline.
 // GitHub Pages tells browsers to keep files for 10 minutes; every request here revalidates
 // with the server instead (a tiny "not modified" check), so updates show up on the next open.
-const CACHE = 'lumen-v7';
+const CACHE = 'lumen-v8';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/util.js', 'js/auth.js', 'js/client.js', 'js/spotify.js', 'js/mock.js', 'js/normalize.js',

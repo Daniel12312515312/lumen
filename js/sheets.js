@@ -63,6 +63,7 @@ export function trackActions(t) {
 
 export async function devicesSheet() {
   const sheet = openSheet(`<div class="sheet-title">Play on</div><div class="dev-list"><div class="list-foot"><div class="spinner"></div></div></div>`
+    + `<button class="sheet-item" data-a="jam">${icon('users')}<span class="si-text">Join a Jam<small>Listen together with friends</small></span></button>`
     + `<button class="sheet-item" data-a="open">${icon('open')}<span class="si-text">Open the Spotify app<small>Your phone shows up here once Spotify is open</small></span></button>`);
   const list = sheet.querySelector('.dev-list');
   let devs = [];
@@ -79,6 +80,7 @@ export async function devicesSheet() {
     const b = e.target.closest('.sheet-item');
     if (!b) return;
     if (b.dataset.a === 'open') { location.href = 'spotify:'; return; }
+    if (b.dataset.a === 'jam') { history.back(); setTimeout(jamSheet, 350); return; }
     const d = devs.find(x => x.id === b.dataset.id);
     if (d && !d.active) { closeSheet(); player.transfer(d); }
   });
@@ -108,6 +110,7 @@ export function npMenu() {
   const sheet = openSheet(head(t) + linkItems(t)
     + `<button class="sheet-item" data-a="share">${icon('share')}<span class="si-text">Share</span></button>`
     + `<button class="sheet-item${sleepTimer.active ? ' on' : ''}" data-a="sleep">${icon('moon')}<span class="si-text">Sleep timer${sleepTimer.active ? `<small>${esc(sleepTimer.label())} left</small>` : ''}</span></button>`
+    + `<button class="sheet-item" data-a="jam">${icon('users')}<span class="si-text">Join a Jam</span></button>`
     + offsetItem()
     + (t.id ? `<a class="sheet-item" href="spotify:${t.type}:${esc(t.id)}">${icon('open')}<span class="si-text">Open in Spotify</span></a>` : ''));
   wireOffset(sheet);
@@ -115,7 +118,59 @@ export function npMenu() {
     const b = e.target.closest('[data-a]');
     if (!b) return;
     if (b.dataset.a === 'sleep') { history.back(); setTimeout(sleepSheet, 350); return; }
+    if (b.dataset.a === 'jam') { history.back(); setTimeout(jamSheet, 350); return; }
     handleLink(b, t);
+  });
+}
+
+/* ───────── Jam ─────────
+ * Spotify doesn't let apps start or join a Jam (there's no API for it), so Lumen hands the
+ * invite link to the Spotify app, which joins; once you're in, Lumen just follows the music. */
+const JAM_LINK = /(https?:\/\/)?(spotify\.link\/[\w-]+|(open\.)?spotify\.com\/socialsession\/[\w-]+[^\s]*|spotify:socialsession:[\w-]+)/i;
+
+function openInSpotify(link) {
+  if (link.startsWith('spotify:')) { location.href = link; return; }
+  const url = new URL(/^https?:/i.test(link) ? link : `https://${link}`);
+  if (/Android/i.test(navigator.userAgent)) {
+    // hand the link straight to the Spotify app; fall back to the browser if it isn't installed
+    location.href = `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=https;package=com.spotify.music;`
+      + `S.browser_fallback_url=${encodeURIComponent(url.href)};end`;
+  } else {
+    window.open(url.href, '_blank', 'noopener');
+  }
+}
+
+export function jamSheet() {
+  const sheet = openSheet(`<div class="sheet-title">Jam</div>
+    <div class="jam-box">
+      <p>Paste the Jam link someone sent you. Spotify opens and joins the Jam, then come back here — Lumen shows the Jam's music and lyrics.</p>
+      <div class="jam-row"><input class="text-input" type="url" placeholder="spotify.link/… or open.spotify.com/socialsession/…" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="ghost-btn jam-paste" type="button">Paste</button></div>
+      <div class="jam-error hidden">That doesn't look like a Jam link.</div>
+      <button class="primary-btn jam-join" disabled>Join Jam</button>
+    </div>
+    <button class="sheet-item" data-a="start">${icon('users')}<span class="si-text">Start a Jam<small>Opens Spotify — tap the device icon, then Start a Jam</small></span></button>
+    <div class="sheet-note">Whether you can pause or skip from Lumen during a Jam depends on what the host allows.</div>`);
+  const input = sheet.querySelector('input'), join = sheet.querySelector('.jam-join'), err = sheet.querySelector('.jam-error');
+  const check = () => {
+    const ok = JAM_LINK.test(input.value.trim());
+    join.disabled = !ok;
+    err.classList.toggle('hidden', ok || !input.value.trim());
+  };
+  input.addEventListener('input', check);
+  sheet.querySelector('.jam-paste').addEventListener('click', async () => {
+    try { input.value = (await navigator.clipboard.readText()).trim(); check(); } catch { input.focus(); }
+  });
+  join.addEventListener('click', () => {
+    const m = input.value.trim().match(JAM_LINK);
+    if (!m) return;
+    haptic();
+    openInSpotify(m[0]);
+    closeSheet();
+    toast('Opening Spotify — come back once you’ve joined', { duration: 5000 });
+  });
+  sheet.addEventListener('click', e => {
+    if (e.target.closest('[data-a="start"]')) { closeSheet(); location.href = 'spotify:'; }
   });
 }
 
@@ -256,6 +311,7 @@ export function settingsSheet() {
     + `<button class="sheet-item${sleepTimer.active ? ' on' : ''}" data-a="sleep">${icon('moon')}<span class="si-text">Sleep timer${sleepTimer.active ? `<small>${esc(sleepTimer.label())} left</small>` : ''}</span></button>`
     + offsetItem()
     + `<button class="sheet-item" data-a="devices">${icon('speaker')}<span class="si-text">Devices</span></button>`
+    + `<button class="sheet-item" data-a="jam">${icon('users')}<span class="si-text">Join a Jam</span></button>`
     + `<a class="sheet-item" href="spotify:">${icon('open')}<span class="si-text">Open the Spotify app</span></a>`
     + `<button class="sheet-item" data-a="out">${icon('logout')}<span class="si-text">${isDemo ? 'Exit demo' : 'Sign out'}</span></button>`
     + `<div class="sheet-note">Lumen ${esc(VERSION)} · lyrics by LRCLIB · not affiliated with Spotify</div>`);
@@ -266,6 +322,7 @@ export function settingsSheet() {
     if (b.dataset.a === 'devices') { await closeOverlays(); devicesSheet(); }
     if (b.dataset.a === 'home') { await closeOverlays(); homeEditor(); }
     if (b.dataset.a === 'sleep') { await closeOverlays(); sleepSheet(); }
+    if (b.dataset.a === 'jam') { await closeOverlays(); jamSheet(); }
     if (b.dataset.a === 'out') {
       store('lumen.demo', null);
       if (!isDemo) auth.logout();

@@ -76,7 +76,7 @@ export function initNowPlaying() {
     else if (type === 'queue' && mode === 'queue') drawQueue();
   });
 
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) lyrics.snap(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) lyrics.snap(); syncWakeLock(); });
   wireControls();
   wireMini();
   wireGestures();
@@ -116,6 +116,25 @@ function wireDbar() {
       case 'sleep': sleepSheet(); break;
     }
   });
+}
+
+/* Keep the screen awake while the lyrics are on screen (like Spotify), and let it sleep otherwise. */
+let wakeLock = null, wakeBusy = false;
+async function syncWakeLock() {
+  const want = open && mode === 'lyrics' && !document.hidden && 'wakeLock' in navigator;
+  if (want && !wakeLock && !wakeBusy) {
+    wakeBusy = true;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch { wakeLock = null; }
+    wakeBusy = false;
+    if (!(open && mode === 'lyrics')) syncWakeLock(); // closed while we were asking
+  } else if (!want && wakeLock) {
+    const w = wakeLock;
+    wakeLock = null;
+    w.release().catch(() => {});
+  }
 }
 
 /** Keyboard "L": open the lyrics, or close the song screen if it's open. */
@@ -306,6 +325,7 @@ export function openNP(m) {
   setupMarquee();
   poke();
   if (mode === 'queue') drawQueue(true);
+  syncWakeLock();
 }
 
 function settle() {
@@ -324,6 +344,7 @@ function closeNow() {
   np.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('np-open');
   player.setFast(false);
+  syncWakeLock();
 }
 
 function setMode(m, animate = true) {
@@ -352,6 +373,7 @@ function setMode(m, animate = true) {
   if (m === 'lyrics') lyrics.snap();
   setupMarquee();
   poke();
+  syncWakeLock();
 }
 
 /** Show controls; in lyrics mode hide them again after a few idle seconds. */
