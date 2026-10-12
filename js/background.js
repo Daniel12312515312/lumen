@@ -12,7 +12,7 @@ const LAYERS = [
 ];
 const FADE = 1600;
 let cur = null, prev = null, fadeStart = 0, lastDraw = 0, running = false, currentUrl = null;
-const t0 = performance.now();
+let clock = 0, scrollUntil = 0; // the drift clock only runs while drawing, so a pause never makes it jump
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function resize() {
@@ -37,9 +37,12 @@ function drawSet(img, alpha, t) {
 function frame(now) {
   if (!running) return;
   requestAnimationFrame(frame);
-  if (now - lastDraw < 33 || document.hidden) return; // ~30 fps is plenty for a blurred backdrop
+  // ~25 fps is plenty for a slow blurred backdrop; it holds still while a list scrolls,
+  // which leaves the phone more room to keep scrolling smooth
+  if (now - lastDraw < 40 || document.hidden || now < scrollUntil) return;
+  clock += Math.min(now - lastDraw, 100) / 1000;
   lastDraw = now;
-  const t = reduceMotion ? 0 : (now - t0) / 1000;
+  const t = reduceMotion ? 0 : clock;
   ctx.filter = 'none';
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#0e0e15';
@@ -136,6 +139,14 @@ function applyColors(info) {
   meta?.setAttribute('content', `rgb(${ar}, ${ag}, ${ab})`);
 }
 
+/** A small copy of the cover: drawing it every frame is much cheaper than the full-size image. */
+function shrink(img) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 96;
+  c.getContext('2d').drawImage(img, 0, 0, 96, 96);
+  return c;
+}
+
 function defaultArt() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -153,6 +164,7 @@ export const background = {
   init() {
     resize();
     addEventListener('resize', resize);
+    document.addEventListener('scroll', () => { scrollUntil = performance.now() + 220; }, { capture: true, passive: true });
     cur = { img: defaultArt() };
     running = true;
     requestAnimationFrame(frame);
@@ -169,7 +181,7 @@ export const background = {
       const img = await loadImage(url);
       if (url !== currentUrl) return;
       prev = cur;
-      cur = { img };
+      cur = { img: shrink(img) };
       fadeStart = performance.now();
       applyColors(analyze(img));
     } catch { /* keep the previous backdrop */ }

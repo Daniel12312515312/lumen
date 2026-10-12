@@ -45,7 +45,7 @@ a { color: inherit; }
 #bg-canvas { position: absolute; inset: -6%; width: 112%; height: 112%; }
 .bg-shade { position: absolute; inset: 0;
   background: linear-gradient(180deg, rgba(0,0,0,calc(var(--shade) * .65)) 0%, rgba(0,0,0,var(--shade)) 50%, rgba(0,0,0,calc(var(--shade) + .16)) 100%); }
-.bg-grain { position: absolute; inset: 0; opacity: .07; mix-blend-mode: overlay; pointer-events: none;
+.bg-grain { position: absolute; inset: 0; opacity: .045; pointer-events: none; /* plain blending: cheaper to draw every frame than overlay */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
 
 /* ───────── App shell ───────── */
@@ -140,6 +140,15 @@ a { color: inherit; }
 .row { display: flex; align-items: center; gap: 14px; padding: 7px 8px 7px 20px; min-height: 64px; position: relative;
   content-visibility: auto; contain-intrinsic-size: auto 64px; transition: background .18s; }
 .row:active { background: var(--fill-1); }
+.row.track { touch-action: pan-y; } /* sideways drags are ours: swipe to add to the queue */
+.row.swiping { content-visibility: visible; z-index: 2; background: transparent; }
+.row.swipe-back { transition: transform .32s var(--ease); }
+.sw-hint { position: absolute; top: 7px; bottom: 7px; right: calc(100% + 10px); width: 58px; border-radius: 14px; display: grid; place-items: center;
+  background: rgba(255,255,255,.1); color: var(--text); opacity: 0; pointer-events: none; transition: background .2s, color .2s; }
+.sw-hint.left { right: auto; left: calc(100% + 10px); }
+.sw-hint .i { width: 24px; height: 24px; transition: transform .3s var(--spring); }
+.sw-hint.armed { background: var(--accent); color: var(--on-accent); }
+.sw-hint.armed .i { transform: scale(1.14); }
 .row.dim { opacity: .45; }
 .row-art-wrap { position: relative; width: 50px; height: 50px; flex: none; }
 .row-art { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; background: var(--fill-1); }
@@ -205,11 +214,19 @@ body.is-paused .eq i { animation-play-state: paused; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Artist hero */
-.artist-hero { position: relative; height: min(54vh, 430px); margin-top: calc(-56px - var(--safe-t)); overflow: hidden; }
-.artist-hero img, .artist-hero .ph { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.artist-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,.25) 0%, transparent 30%, transparent 55%, rgba(8,8,12,.75) 100%); }
-.artist-hero h1 { position: absolute; left: 20px; right: 20px; bottom: 18px; z-index: 1; margin: 0; font-size: 42px; font-weight: 800; letter-spacing: -.035em; line-height: 1.02; text-shadow: 0 4px 24px rgba(0,0,0,.4); unicode-bidi: plaintext; text-align: left; }
-.artist-actions { display: flex; gap: 12px; padding: 18px 20px 4px; }
+/* artist: the photo fades into the background, the name sits on it, one clean row of buttons */
+.artist-hero { position: relative; height: min(50vh, 410px); margin-top: calc(-56px - var(--safe-t)); }
+.ah-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 25%;
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%); mask-image: linear-gradient(to bottom, #000 45%, transparent 100%); }
+.ah-photo.sk { border-radius: 0; }
+.ah-photo.ph { display: grid; place-items: center; background: var(--fill-1); }
+.ah-photo.ph .i { width: 64px; height: 64px; color: var(--text-3); }
+.artist-hero::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 120px; z-index: 1; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(0,0,0,.3), transparent); } /* keeps the back button readable */
+.artist-hero h1 { position: absolute; left: 20px; right: 20px; bottom: 6px; z-index: 1; margin: 0; font-size: clamp(36px, 11vw, 48px); font-weight: 800; letter-spacing: -.035em; line-height: 1.02;
+  text-shadow: 0 2px 22px rgba(0,0,0,.35); unicode-bidi: plaintext; text-align: left; overflow-wrap: anywhere; }
+.ar-actions { margin-top: 10px; padding: 0 20px; }
+.ar-liked .sec-h { padding-top: 26px; }
 
 /* ───────── Search ───────── */
 .search-title { padding: calc(var(--safe-t) + 26px) 20px 4px; }
@@ -283,9 +300,8 @@ body.is-paused .eq i { animation-play-state: paused; }
 .np-panel { flex: 0 0 0; min-height: 0; position: relative; opacity: 0; pointer-events: none; transform: translateY(10px); }
 #np:not([data-mode="cover"]) .np-panel { flex: 1 1 0; opacity: 1; pointer-events: auto; transform: none;
   transition: opacity .45s ease .08s, transform .6s var(--ease) .05s; }
-.np-lyrics, .np-queue { position: absolute; inset: 0; display: none; }
+.np-lyrics { position: absolute; inset: 0; display: none; }
 #np[data-mode="lyrics"] .np-lyrics { display: block; }
-#np[data-mode="queue"] .np-queue { display: block; }
 
 .np-controls { flex: none; padding: 4px 26px 8px; transition: opacity .45s ease, transform .5s var(--ease); }
 #np:not([data-mode="cover"]) .np-controls { position: absolute; left: 0; right: 0; bottom: 0; padding-top: 34px;
@@ -338,6 +354,7 @@ body.is-paused .eq i { animation-play-state: paused; }
 #np[data-mode="lyrics"]:not(.idle) .lyrics { --fadeb: 150px; }
 .ly-track { position: absolute; left: 0; right: 0; top: 0; padding: 0 30px 0 26px; }
 .ly-line { padding: 11px 0; will-change: transform; cursor: pointer; }
+.ly-line.far { visibility: hidden; will-change: auto; } /* off screen: not drawn */
 .ly-inner { font-size: clamp(27px, 8.1vw, 36px); font-weight: 800; line-height: 1.2; letter-spacing: -.016em;
   --sa: .45; --ua: .45;
   filter: blur(calc(var(--blur) * 1px)) drop-shadow(0 0 0 rgba(255,255,255,0)) drop-shadow(0 0 0 rgba(255,255,255,0));
@@ -353,8 +370,8 @@ body.is-paused .eq i { animation-play-state: paused; }
 .w, .l { display: inline-block; white-space: pre; padding: .1em .03em; margin: -.1em -.03em; color: transparent;
   background-image: linear-gradient(var(--gdir, 90deg), rgba(255,255,255,var(--sa)) calc(var(--p) * 120% - 20%), rgba(255,255,255,var(--ua)) calc(var(--p) * 120%));
   -webkit-background-clip: text; background-clip: text;
-  text-shadow: 0 0 var(--gr, 4px) rgba(255,255,255,var(--go, 0));
   transform-origin: 50% 65%; }
+.w.lit, .l.lit { text-shadow: 0 0 var(--gr, 4px) rgba(255,255,255,var(--go, 0)); } /* only while glowing */
 .w.split { background: none; text-shadow: none; }
 
 .ly-interlude { padding: 6px 0; height: 50px; }
@@ -373,9 +390,20 @@ body.is-paused .eq i { animation-play-state: paused; }
 @keyframes ly-pulse { 0%, 100% { opacity: .25; transform: scale(.8); } 50% { opacity: .9; transform: scale(1.05); } }
 .ly-source { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 11px; color: var(--text-3); pointer-events: none; }
 
-/* Queue */
-.np-queue { overflow-y: auto; padding-bottom: 210px; overscroll-behavior: contain; scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 4%); mask-image: linear-gradient(to bottom, transparent 0, #000 4%); }
+/* Queue: a page of its own, without the player controls */
+#queue { position: fixed; inset: 0; z-index: 22; display: flex; flex-direction: column; padding-top: var(--safe-t); background: rgba(0,0,0,.2);
+  transform: translateX(100%); visibility: hidden; transition: transform .46s var(--ease), visibility 0s linear .46s; }
+#queue::before { content: ''; position: absolute; inset: 0; z-index: -1; background: rgba(10,10,16,.34);
+  backdrop-filter: blur(44px) saturate(1.5); -webkit-backdrop-filter: blur(44px) saturate(1.5); transition: opacity .25s; }
+#queue.open { transform: none; visibility: visible; transition: transform .46s var(--ease), visibility 0s; }
+#queue.settled::before { opacity: 0; }
+body.q-settled #app, body.q-settled #np { visibility: hidden; } /* once it has slid in, only the queue is drawn */
+.qp-top { flex: none; height: 58px; display: flex; align-items: center; padding: 0 8px; }
+.qp-top .i { width: 26px; height: 26px; }
+.qp-title { flex: 1; margin: 0; text-align: center; font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+.qp-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding-bottom: calc(var(--safe-b) + 32px); }
+.qp-body::-webkit-scrollbar { display: none; }
+#queue .row { content-visibility: visible; } /* short list: draw it right away so nothing pops in while it slides */
 .q-h { padding: 16px 22px 6px; font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
 .q-sub { padding: 0 22px 6px; font-size: 12.5px; color: var(--text-3); }
 
@@ -615,10 +643,11 @@ body.np-open #toast { bottom: calc(var(--safe-b) + 150px); }
   .card-title { font-size: 14.5px; }
   .card-sub { font-size: 13px; }
   .pill-btn { flex: none; min-width: 150px; padding: 0 26px; }
-  .artist-hero { margin-top: 6px; height: 380px; border-radius: 24px; }
-  .artist-hero h1 { font-size: 64px; left: 32px; bottom: 26px; }
-  .artist-actions { padding: 22px 20px 4px; }
-  .artist-actions .pill-btn { flex: none; }
+  .artist-hero { margin-top: 6px; height: 400px; }
+  .ah-photo { border-radius: 24px; }
+  .artist-hero::before { border-radius: 24px 24px 0 0; }
+  .artist-hero h1 { font-size: 64px; left: 24px; bottom: 10px; }
+  .ar-actions { margin-top: 18px; }
   .search-box { max-width: 620px; }
   .top-result { max-width: 620px; }
   .st-hero { grid-template-columns: repeat(2, minmax(0, 300px)); }
@@ -683,7 +712,8 @@ body.np-open #toast { bottom: calc(var(--safe-b) + 150px); }
   #np[data-mode="lyrics"]:not(.idle) .lyrics { --fadeb: 0px; }
   .ly-inner { font-size: clamp(30px, 2.7vw, 46px); }
   .ly-track { padding: 0 32px 0 8px; }
-  .np-queue { padding-bottom: 40px; }
+  .qp-top { height: 64px; padding: 0 20px; }
+  .qp-body { padding-left: max(0px, calc((100% - 860px) / 2)); padding-right: max(0px, calc((100% - 860px) / 2)); }
 }
 
 /* ───────── Playlist / album header ───────── */

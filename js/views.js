@@ -4,7 +4,7 @@ import { sp, isDemo } from './client.js';
 import { player } from './player.js';
 import { go, back } from './nav.js';
 import { lib } from './lib.js';
-import { trackRow, itemRow, card, itemArt, markPlaying } from './rows.js';
+import { trackRow, itemRow, card, itemArt, itemSub, markPlaying } from './rows.js';
 import { trackActions, settingsSheet, itemActions, homeEditor } from './sheets.js';
 import { pins } from './pins.js';
 import { statsView } from './stats.js';
@@ -208,6 +208,27 @@ async function buildShortcuts(R, PL) {
 }
 
 /* ───────── Search ───────── */
+// compare names loosely: case, accents, Hebrew vowel marks, punctuation, spaces and a leading "the" don't count
+const loose = s => String(s || '').toLowerCase().normalize('NFKD').replace(/^the\s+/, '').replace(/[^\p{L}\p{N}]+/gu, '');
+function editDistance(a, b) {
+  if (Math.abs(a.length - b.length) > 3) return 99;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+/** 'exact' when the search is the name, 'close' for a small typo or a name still being typed, else false. */
+function nameMatch(query, name) {
+  const a = loose(query), b = loose(name);
+  if (!a || !b) return false;
+  if (a === b) return 'exact';
+  if (a.length >= 3 && b.startsWith(a) && a.length >= b.length * .6) return 'close';
+  return editDistance(a, b) <= (b.length <= 4 ? 0 : b.length <= 8 ? 1 : 2) ? 'close' : false;
+}
+
 function searchView() {
   const v = el(`<div class="view search has-topbar">
     <h1 class="page-title search-title">Search</h1>
@@ -235,11 +256,12 @@ function searchView() {
     markPlaying(body);
   }
 
+  /** The band goes first only when the search is its name (or close: a typo, still typing); otherwise the song. */
   function pickTop() {
-    const nq = q.toLowerCase();
-    const a = res.artists[0];
-    if (a && (a.name.toLowerCase() === nq || !res.tracks.length)) return a;
-    return res.tracks[0] || a || null;
+    const t = res.tracks[0];
+    const a = res.artists.slice(0, 3).find(x => nameMatch(q, x.name));
+    if (a) return t && nameMatch(q, t.name) === 'exact' && nameMatch(q, a.name) !== 'exact' ? t : a;
+    return t || res.albums[0] || res.playlists[0] || res.artists[0] || null;
   }
 
   function renderResults() {
@@ -252,7 +274,7 @@ function searchView() {
     res.top = top;
     body.innerHTML = (top ? `<div class="sec-h"><h2>Top result</h2></div><button class="top-result glass-card" data-k="top">`
         + art(top.image || top.album?.image, 'tr-art' + (top.type === 'artist' ? ' round' : ''), top.type === 'artist' ? 'artist' : 'music')
-        + `<div style="min-width:0"><div class="tr-name">${esc(top.name)}</div><div class="tr-type">${top.type === 'artist' ? 'Artist' : `Song · ${esc(artistNames(top))}`}</div></div></button>` : '')
+        + `<div style="min-width:0"><div class="tr-name">${esc(top.name)}</div><div class="tr-type">${top.type === 'track' ? `Song · ${esc(artistNames(top))}` : esc(itemSub(top))}</div></div></button>` : '')
       + (tracks.length ? `<div class="sec-h"><h2>Songs</h2></div><div class="list" data-k="songs">${tracks.map((t, i) => trackRow(t, i)).join('')}</div>`
         + (res.tracksNext ? '<button class="more-btn" data-k="more">More songs</button>' : '') : '')
       + (artists.length ? `<div class="sec-h"><h2>Artists</h2></div><div class="hscroll" data-k="artists">${artists.map((a, i) => card(a, i, 'Artist')).join('')}</div>` : '')
@@ -312,7 +334,7 @@ function searchView() {
     if (k === 'top') {
       haptic();
       remember(res.top);
-      if (res.top.type === 'artist') openItem(res.top); else playTrackInContext(res.top);
+      if (res.top.type === 'track') playTrackInContext(res.top); else openItem(res.top);
       return;
     }
     const c = e.target.closest('.card');
@@ -332,7 +354,7 @@ function searchView() {
     let x = null;
     if (c) x = res?.[c.parentElement.dataset.k]?.[Number(c.dataset.i)];
     else if (item && item.parentElement.dataset.k === 'recent') x = recents[Number(item.dataset.i)];
-    else if (top && res?.top?.type === 'artist') x = res.top;
+    else if (top && res?.top && res.top.type !== 'track') x = res.top;
     if (!x) return;
     e.preventDefault();
     itemActions(x);
@@ -556,15 +578,18 @@ function collectionView(kind, id) {
 }
 
 /* ───────── Artist ───────── */
+const LIKED_PREVIEW = 5;
+
 function artistView(id) {
   const v = el(`<div class="view artist has-topbar">
-    <div class="topbar"><button class="icon-btn back" aria-label="Back">${icon('chevLeft')}</button><div class="topbar-title"></div>
-      <button class="icon-btn pinb" style="visibility:hidden" aria-label="Pin to Home">${icon('pin')}</button></div>
-    <div class="artist-hero"><div class="sk" style="position:absolute;inset:0;border-radius:0"></div></div>
+    <div class="topbar"><button class="icon-btn back" aria-label="Back">${icon('chevLeft')}</button><div class="topbar-title"></div><span class="topbar-gap"></span></div>
+    <div class="artist-hero"><div class="ah-photo sk"></div><h1></h1></div>
+    <div class="ch-actions ar-actions"></div>
+    <div class="ar-liked"></div>
     <div class="artist-body">${skCards(3)}</div></div>`);
   wireTopbar(v, 300);
-  const heroEl = $('.artist-hero', v), body = $('.artist-body', v);
-  let artist = null, albums = [], singles = [];
+  const heroEl = $('.artist-hero', v), actions = $('.ar-actions', v), likedEl = $('.ar-liked', v), body = $('.artist-body', v);
+  let artist = null, albums = [], singles = [], liked = [], showAll = false;
 
   async function load() {
     const [a, al, si] = await Promise.allSettled([sp.artist(id), sp.artistAlbums(id, 'album'), sp.artistAlbums(id, 'single')]);
@@ -577,20 +602,63 @@ function artistView(id) {
     artist = a.value;
     albums = al.value || [];
     singles = si.value || [];
-    heroEl.innerHTML = `${artist.imageLarge ? `<img src="${esc(artist.imageLarge)}" alt="">` : `<div class="ph">${icon('artist')}</div>`}<h1>${esc(artist.name)}</h1>`;
+    // the photo fades into the background; just the name on it
+    heroEl.innerHTML = (artist.imageLarge ? `<img class="ah-photo" src="${esc(artist.imageLarge)}" alt="">` : `<div class="ah-photo ph">${icon('artist')}</div>`)
+      + `<h1>${esc(artist.name)}</h1>`;
     $('.topbar-title', v).textContent = artist.name;
-    $('.pinb', v).style.visibility = '';
-    wirePin($('.pinb', v), artist);
-    body.innerHTML = `<div class="artist-actions"><button class="pill-btn" data-a="play">${icon('play')}Play</button><button class="pill-btn" data-a="shuffle">${icon('shuffle')}Shuffle</button></div>`
-      + (artist.genres?.length ? `<div class="hero-sub" style="padding:10px 20px 0;text-align:left">${esc(artist.genres.slice(0, 3).join(' · '))}</div>` : '')
-      + (albums.length ? `<div class="sec-h"><h2>Albums</h2></div><div class="hscroll" data-k="albums">${albums.map((x, i) => card(x, i, x.year)).join('')}</div>` : '')
+    actions.innerHTML = `<button class="ch-play" data-a="play" aria-label="Play">${icon('play')}</button>`
+      + `<button class="icon-btn" data-a="shuffle" aria-label="Shuffle">${icon('shuffle')}</button>`
+      + `<button class="icon-btn" data-a="pin" aria-label="Pin to Home">${icon('pin')}</button>`;
+    wirePin($('[data-a="pin"]', actions), artist);
+    paintPlay();
+    body.innerHTML = (albums.length ? `<div class="sec-h"><h2>Albums</h2></div><div class="hscroll" data-k="albums">${albums.map((x, i) => card(x, i, x.year)).join('')}</div>` : '')
       + (singles.length ? `<div class="sec-h"><h2>Singles & EPs</h2></div><div class="hscroll" data-k="singles">${singles.map((x, i) => card(x, i, x.year)).join('')}</div>` : '')
       + (!albums.length && !singles.length ? '<div class="empty">No releases to show.</div>' : '');
+    loadLiked();
   }
 
-  body.addEventListener('click', e => {
+  /** Your Liked Songs by this artist (features count too). */
+  async function loadLiked() {
+    likedEl.innerHTML = `<div class="sec-h"><h2>Your liked songs</h2></div>${skRows(2)}`;
+    try {
+      liked = (await lib.liked()).filter(t => t.artists?.some(x => x.id === id));
+    } catch { liked = []; }
+    renderLiked();
+  }
+
+  function renderLiked() {
+    if (!liked.length) { likedEl.innerHTML = ''; return; }
+    const shown = showAll ? liked : liked.slice(0, LIKED_PREVIEW);
+    likedEl.innerHTML = `<div class="sec-h"><h2>Your liked songs</h2>${liked.length > LIKED_PREVIEW ? `<button data-a="more">${showAll ? 'Show less' : `Show all ${liked.length}`}</button>` : ''}</div>`
+      + `<div class="list">${shown.map((t, i) => trackRow(t, i)).join('')}</div>`;
+    markPlaying(likedEl);
+  }
+
+  function isCurrent() { return !!artist && !!player.track && player.pb?.context?.uri === artist.uri; }
+  function paintPlay() {
+    const b = $('.ch-play', actions);
+    if (!b) return;
+    const on = isCurrent() && player.playing;
+    setIcon(b, on ? 'pause' : 'play');
+    b.setAttribute('aria-label', on ? 'Pause' : 'Play');
+  }
+  player.on(type => { if (v.isConnected && (type === 'state' || type === 'track' || type === 'context')) paintPlay(); });
+
+  actions.addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
-    if (a && artist) { haptic(); player.playContext(artist.uri, { shuffle: a === 'shuffle' }); return; }
+    if (!artist || (a !== 'play' && a !== 'shuffle')) return;
+    haptic();
+    if (a === 'play' && isCurrent()) player.toggle(); // the big button pauses / resumes this artist
+    else player.playContext(artist.uri, { shuffle: a === 'shuffle' });
+  });
+
+  likedEl.addEventListener('click', e => {
+    if (e.target.closest('[data-a="more"]')) { showAll = !showAll; renderLiked(); }
+  });
+  // play through your liked songs by them, starting from the one you tapped
+  wireTracks(likedEl, () => liked, i => player.playUris(liked, i));
+
+  body.addEventListener('click', e => {
     const c = e.target.closest('.card');
     if (c) {
       const list = c.parentElement.dataset.k === 'albums' ? albums : singles;

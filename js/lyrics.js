@@ -451,16 +451,32 @@ export class LyricsView {
       this.snapNext = false;
       const it = this.items[a];
       if (it?.dotsEl) this.animDots(it, t);
-      // the active line plus any line whose letters are still settling
-      for (const line of this.awake) {
-        if (this.animUnits(line, t, dt) && line !== it) this.awake.delete(line);
+      // the active line plus any line whose letters are still settling. Letters repaint at most
+      // ~60 times a second (the S25 runs at 120 Hz); the lines themselves still glide every frame.
+      this.letterDt = (this.letterDt || 0) + dt;
+      if (now - (this.lettersAt || 0) >= 15) {
+        const ldt = Math.min(.05, this.letterDt);
+        this.letterDt = 0;
+        this.lettersAt = now;
+        for (const line of this.awake) {
+          if (this.animUnits(line, t, ldt) && line !== it) this.awake.delete(line);
+        }
       }
       if (this.manual && !this.drag && now > this.manualUntil) this.exitManual();
     }
 
+    // lines well outside the screen aren't drawn or moved at all
+    const lo = -this.h * .6, hi = this.h * 1.6;
     for (const it of this.items) {
       it.spring.step(dt, now);
-      if (it.drawn !== it.spring.x) {
+      const y = it.top + it.spring.x;
+      const near = y + it.height > lo && y < hi;
+      if (near !== it.near) {
+        it.near = near;
+        it.el.classList.toggle('far', !near);
+        if (near) it.drawn = null;
+      }
+      if (near && it.drawn !== it.spring.x) {
         it.el.style.transform = `translate3d(0,${it.spring.x.toFixed(2)}px,0)`;
         it.drawn = it.spring.x;
       }
@@ -504,8 +520,13 @@ export class LyricsView {
     const st = u.el.style;
     st.setProperty('--p', p.toFixed(3));
     st.transform = `translateY(${y.toFixed(4)}em) scale(${u.s.x.toFixed(4)})`;
-    st.setProperty('--gr', `${blur.toFixed(1)}px`);
-    st.setProperty('--go', alpha.toFixed(3));
+    // only letters that are glowing right now draw a (blurred) shadow — the rest skip it entirely
+    const lit = alpha > .003;
+    if (lit !== u.lit) { u.lit = lit; u.el.classList.toggle('lit', lit); }
+    if (lit) {
+      st.setProperty('--gr', `${blur.toFixed(1)}px`);
+      st.setProperty('--go', alpha.toFixed(3));
+    }
   }
 
   animDots(it, t) {

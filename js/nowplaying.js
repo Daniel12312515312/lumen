@@ -1,13 +1,14 @@
-// Mini player + full Now Playing sheet (cover ⇄ lyrics ⇄ queue), gestures and progress.
+// Mini player + full Now Playing sheet (cover ⇄ lyrics), gestures and progress.
 import { $, $$, esc, icon, setIcon, fmtTime, artistNames, clamp, haptic, store, deviceIcon } from './util.js';
 import { player } from './player.js';
 import { background } from './background.js';
 import { LyricsView, fetchLyrics } from './lyrics.js';
 import { pushOverlay, closeOverlays } from './ui.js';
 import { go } from './nav.js';
-import { trackRow, markPlaying } from './rows.js';
-import { trackActions, devicesSheet, npMenu, getLyricsOffset, sleepSheet } from './sheets.js';
+import { markPlaying } from './rows.js';
+import { devicesSheet, npMenu, getLyricsOffset, sleepSheet } from './sheets.js';
 import { sleepTimer } from './sleeptimer.js';
+import { openQueue, queueOpen, queueSettled } from './queue.js';
 
 const np = $('#np');
 const app = $('#app');
@@ -30,7 +31,6 @@ const E = {
   fill: $('.np-fill', np), pos: $('.np-pos', np), dur: $('.np-dur', np), progress: $('.np-progress', np),
   device: $('.np-device', np), play: $('.ctl.play', np), shuffle: $('[data-act="shuffle"]', np),
   repeat: $('[data-act="repeat"]', np), lyricsBtn: $('[data-act="lyrics"]', np), queueBtn: $('[data-act="queue"]', np),
-  queue: $('.np-queue', np),
   miniArt: $('.mini-art', mini), miniTitle: $('.mini-title', mini), miniArtist: $('.mini-artist', mini),
   miniToggle: $('[data-act="toggle"]', mini), miniFill: $('.mini-progress i', mini), miniInner: $('.mini-inner', mini),
 };
@@ -74,7 +74,6 @@ export function initNowPlaying() {
     else if (type === 'state') updateState();
     else if (type === 'liked') updateLike();
     else if (type === 'context') updateContext();
-    else if (type === 'queue' && mode === 'queue') drawQueue();
   });
 
   document.addEventListener('visibilitychange', () => { if (!document.hidden) lyrics.snap(); syncWakeLock(); });
@@ -154,7 +153,7 @@ function wireDbar() {
       case 'shuffle': player.shuffle(); break;
       case 'repeat': player.repeat(); break;
       case 'lyrics': if (open && mode === 'lyrics') history.back(); else openNP('lyrics'); break;
-      case 'queue': if (open && mode === 'queue') history.back(); else openNP('queue'); break;
+      case 'queue': if (queueOpen()) history.back(); else openQueue(); break;
       case 'devices': devicesSheet(); break;
       case 'sleep': sleepSheet(); break;
     }
@@ -219,7 +218,6 @@ function updateTrack() {
   updateContext();
   setupMarquee();
   loadLyrics(t);
-  if (mode === 'queue') drawQueue();
   markPlaying();
   animateArtIn();
 }
@@ -326,7 +324,7 @@ function setupMarquee() {
 }
 
 /* ───────── Frame loop: progress + lyrics ───────── */
-let dbPos = '', dbDur = '';
+let dbPos = '', dbDur = '', wasCovered = false;
 function tick() {
   requestAnimationFrame(tick);
   if (document.hidden || !player.track) return;
@@ -345,7 +343,13 @@ function tick() {
     if (a !== lastPosText) { E.pos.textContent = a; lastPosText = a; }
     if (b !== lastRemain) { E.dur.textContent = b; lastRemain = b; }
   }
-  if (mode === 'lyrics') lyrics.update(pos + getLyricsOffset());
+  // while the queue page covers the song screen the lyrics rest, then jump to the right line
+  const covered = queueSettled();
+  if (mode === 'lyrics' && !covered) {
+    if (wasCovered) lyrics.snap();
+    lyrics.update(pos + getLyricsOffset());
+  }
+  wasCovered = covered;
 }
 
 /* ───────── Open / close / modes ───────── */
@@ -365,7 +369,6 @@ export function openNP(m) {
   settleTimer = setTimeout(settle, 560);
   setupMarquee();
   poke();
-  if (mode === 'queue') drawQueue(true);
   syncWakeLock();
 }
 
@@ -397,7 +400,6 @@ function setMode(m, animate = true) {
   np.dataset.mode = m;
   store('lumen.npMode', m === 'lyrics' ? 'lyrics' : 'cover');
   E.lyricsBtn.classList.toggle('on', m === 'lyrics');
-  E.queueBtn.classList.toggle('on', m === 'queue');
   if (animate && open) {
     const last = E.artWrap.getBoundingClientRect();
     if (last.width) {
@@ -410,7 +412,6 @@ function setMode(m, animate = true) {
     E.meta.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
       { duration: 420, delay: 80, easing: 'cubic-bezier(.22,.9,.24,1)', fill: 'backwards' });
   }
-  if (m === 'queue') drawQueue(true);
   if (m === 'lyrics') lyrics.snap();
   setupMarquee();
   poke();
@@ -428,14 +429,6 @@ function poke(toggle = false) {
   clearTimeout(idleTimer);
   // on PC the controls live beside the lyrics, so they never need to hide
   if (mode === 'lyrics' && player.playing && open && !isDesktop()) idleTimer = setTimeout(() => np.classList.add('idle'), 3800);
-}
-
-/* ───────── Queue ───────── */
-function drawQueue(refresh = false) {
-  const list = player.upNext;
-  E.queue.innerHTML = `<div class="q-h">Up next</div>${player.contextName ? `<div class="q-sub">From <bdi>${esc(player.contextName)}</bdi></div>` : ''}`
-    + (list.length ? list.map((t, i) => trackRow(t, i)).join('') : '<div class="empty">Nothing queued yet</div>');
-  if (refresh) player.refreshQueue();
 }
 
 /* ───────── Wiring ───────── */
@@ -462,22 +455,12 @@ function wireControls() {
       case 'shuffle': player.shuffle(); break;
       case 'repeat': player.repeat(); break;
       case 'lyrics': setMode('lyrics'); break;
-      case 'queue': setMode('queue'); break;
+      case 'queue': openQueue(); break;
       case 'devices': devicesSheet(); break;
     }
   }, true);
 
   np.addEventListener('pointerdown', e => { if (!e.target.closest('.np-lyrics')) poke(); });
-
-  E.queue.addEventListener('click', e => {
-    const row = e.target.closest('.row.track');
-    if (!row) return;
-    const i = Number(row.dataset.i);
-    const t = player.upNext[i];
-    if (!t) return;
-    if (e.target.closest('.row-more')) trackActions(t);
-    else { haptic(); player.skipTo(i); }
-  });
 }
 
 async function openContext() {

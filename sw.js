@@ -1,12 +1,12 @@
 // Network-first service worker: always the latest version when online, still opens offline.
 // GitHub Pages tells browsers to keep files for 10 minutes; every request here revalidates
 // with the server instead (a tiny "not modified" check), so updates show up on the next open.
-const CACHE = 'lumen-v11';
+const CACHE = 'lumen-v12';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/util.js', 'js/auth.js', 'js/client.js', 'js/spotify.js', 'js/mock.js', 'js/normalize.js',
   'js/player.js', 'js/background.js', 'js/lyrics.js', 'js/nowplaying.js', 'js/views.js', 'js/rows.js',
-  'js/sheets.js', 'js/ui.js', 'js/nav.js', 'js/lib.js', 'js/install.js', 'js/pins.js', 'js/stats.js', 'js/sleeptimer.js', 'js/history.js',
+  'js/sheets.js', 'js/ui.js', 'js/nav.js', 'js/lib.js', 'js/install.js', 'js/pins.js', 'js/stats.js', 'js/sleeptimer.js', 'js/history.js', 'js/queue.js', 'js/swipe.js',
   'js/version.js', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

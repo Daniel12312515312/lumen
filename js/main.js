@@ -17,6 +17,8 @@ import { sleepTimer } from './sleeptimer.js';
 import { itemActions } from './sheets.js';
 import { overlayCount } from './ui.js';
 import { listening } from './history.js';
+import { initQueue } from './queue.js';
+import { wireSwipeToQueue } from './swipe.js';
 
 const LOGO = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="9" y="12" width="22" height="5" rx="2.5" fill="#1DB954" opacity=".7"/><rect x="9" y="21.5" width="30" height="5" rx="2.5" fill="#1ED760"/><rect x="9" y="31" width="17" height="5" rx="2.5" fill="#1DB954" opacity=".7"/></svg>';
 
@@ -196,6 +198,8 @@ function start() {
   wireKeys();
   mountInstall($('.side-install'));
   initNowPlaying();
+  initQueue();
+  wireSwipeToQueue();
   sleepTimer.init();
   lib.me().then(me => { player.me = me; }).catch(() => {});
   player.on(type => {
