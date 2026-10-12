@@ -16,6 +16,7 @@ import { pins } from './pins.js';
 import { sleepTimer } from './sleeptimer.js';
 import { itemActions } from './sheets.js';
 import { overlayCount } from './ui.js';
+import { listening } from './history.js';
 
 const LOGO = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="9" y="12" width="22" height="5" rx="2.5" fill="#1DB954" opacity=".7"/><rect x="9" y="21.5" width="30" height="5" rx="2.5" fill="#1ED760"/><rect x="9" y="31" width="17" height="5" rx="2.5" fill="#1DB954" opacity=".7"/></svg>';
 
@@ -205,6 +206,10 @@ function start() {
   if (!location.hash.startsWith('#/')) history.replaceState(null, '', '#/home');
   showRoute();
   player.start();
+  // keep the on-device listening history growing: Spotify only remembers the last 50 plays
+  listening.syncRecent();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) listening.syncRecent(); });
+  setInterval(() => { if (!document.hidden) listening.syncRecent(); }, 15 * 60_000);
 }
 
 async function boot() {
