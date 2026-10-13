@@ -17,6 +17,7 @@ export function createView(r) {
     case 'album': return collectionView('album', r.id);
     case 'liked': return collectionView('liked');
     case 'artist': return artistView(r.id);
+    case 'artistliked': return artistLikedView(r.id);
     default: return { home: homeView, search: searchView, library: libraryView, stats: statsView }[r.tab]();
   }
 }
@@ -578,18 +579,20 @@ function collectionView(kind, id) {
 }
 
 /* ───────── Artist ───────── */
-const LIKED_PREVIEW = 5;
+const POPULAR_PREVIEW = 5;
+const numRow = (t, i) => trackRow(t, i).replace('>', `><div class="st-num">${i + 1}</div>`);
+const likedByArtist = async id => (await lib.liked()).filter(t => t.artists?.some(x => x.id === id));
 
 function artistView(id) {
   const v = el(`<div class="view artist has-topbar">
     <div class="topbar"><button class="icon-btn back" aria-label="Back">${icon('chevLeft')}</button><div class="topbar-title"></div><span class="topbar-gap"></span></div>
     <div class="artist-hero"><div class="ah-photo sk"></div><h1></h1></div>
     <div class="ch-actions ar-actions"></div>
-    <div class="ar-liked"></div>
+    <div class="ar-popular"></div>
     <div class="artist-body">${skCards(3)}</div></div>`);
   wireTopbar(v, 300);
-  const heroEl = $('.artist-hero', v), actions = $('.ar-actions', v), likedEl = $('.ar-liked', v), body = $('.artist-body', v);
-  let artist = null, albums = [], singles = [], liked = [], showAll = false;
+  const heroEl = $('.artist-hero', v), actions = $('.ar-actions', v), popEl = $('.ar-popular', v), body = $('.artist-body', v);
+  let artist = null, albums = [], singles = [], popular = [], popAll = false, liked = null;
 
   async function load() {
     const [a, al, si] = await Promise.allSettled([sp.artist(id), sp.artistAlbums(id, 'album'), sp.artistAlbums(id, 'single')]);
@@ -608,30 +611,42 @@ function artistView(id) {
     $('.topbar-title', v).textContent = artist.name;
     actions.innerHTML = `<button class="ch-play" data-a="play" aria-label="Play">${icon('play')}</button>`
       + `<button class="icon-btn" data-a="shuffle" aria-label="Shuffle">${icon('shuffle')}</button>`
+      + `<button class="icon-btn ar-heart" data-a="liked" aria-label="Your liked songs by ${esc(artist.name)}">${icon('heart')}</button>`
       + `<button class="icon-btn" data-a="pin" aria-label="Pin to Home">${icon('pin')}</button>`;
     wirePin($('[data-a="pin"]', actions), artist);
     paintPlay();
     body.innerHTML = (albums.length ? `<div class="sec-h"><h2>Albums</h2></div><div class="hscroll" data-k="albums">${albums.map((x, i) => card(x, i, x.year)).join('')}</div>` : '')
       + (singles.length ? `<div class="sec-h"><h2>Singles & EPs</h2></div><div class="hscroll" data-k="singles">${singles.map((x, i) => card(x, i, x.year)).join('')}</div>` : '')
-      + (!albums.length && !singles.length ? '<div class="empty">No releases to show.</div>' : '');
-    loadLiked();
+      + (!albums.length && !singles.length && !popular.length ? '<div class="empty">No releases to show.</div>' : '');
+    loadPopular();
+    likedByArtist(id).then(l => { liked = l; paintHeart(); }).catch(() => { liked = []; paintHeart(); });
   }
 
-  /** Your Liked Songs by this artist (features count too). */
-  async function loadLiked() {
-    likedEl.innerHTML = `<div class="sec-h"><h2>Your liked songs</h2></div>${skRows(2)}`;
-    try {
-      liked = (await lib.liked()).filter(t => t.artists?.some(x => x.id === id));
-    } catch { liked = []; }
-    renderLiked();
+  /* their most popular songs */
+  async function loadPopular() {
+    popEl.innerHTML = `<div class="sec-h"><h2>Popular</h2></div>${skRows(3)}`;
+    try { popular = await sp.artistTop(id, artist.name); } catch { popular = []; }
+    renderPopular();
   }
+  function renderPopular() {
+    if (!popular.length) { popEl.innerHTML = ''; return; }
+    const shown = popAll ? popular : popular.slice(0, POPULAR_PREVIEW);
+    popEl.innerHTML = `<div class="sec-h"><h2>Popular</h2></div><div class="list">${shown.map(numRow).join('')}</div>`
+      + (popular.length > POPULAR_PREVIEW ? `<button class="more-btn" data-a="more">${popAll ? 'Show less' : 'Show more'}</button>` : '');
+    markPlaying(popEl);
+  }
+  popEl.addEventListener('click', e => {
+    if (e.target.closest('[data-a="more"]')) { haptic(); popAll = !popAll; renderPopular(); }
+  });
+  wireTracks(popEl, () => popular, i => player.playUris(popular, i));
 
-  function renderLiked() {
-    if (!liked.length) { likedEl.innerHTML = ''; return; }
-    const shown = showAll ? liked : liked.slice(0, LIKED_PREVIEW);
-    likedEl.innerHTML = `<div class="sec-h"><h2>Your liked songs</h2>${liked.length > LIKED_PREVIEW ? `<button data-a="more">${showAll ? 'Show less' : `Show all ${liked.length}`}</button>` : ''}</div>`
-      + `<div class="list">${shown.map((t, i) => trackRow(t, i)).join('')}</div>`;
-    markPlaying(likedEl);
+  /* the heart: your liked songs by them (filled, with a count, once there are some) */
+  function paintHeart() {
+    const b = $('.ar-heart', actions);
+    if (!b) return;
+    const n = liked?.length || 0;
+    b.innerHTML = `${icon(n ? 'heartFill' : 'heart')}${n ? `<span>${n}</span>` : ''}`;
+    b.classList.toggle('on', n > 0);
   }
 
   function isCurrent() { return !!artist && !!player.track && player.pb?.context?.uri === artist.uri; }
@@ -646,17 +661,18 @@ function artistView(id) {
 
   actions.addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
-    if (!artist || (a !== 'play' && a !== 'shuffle')) return;
+    if (!artist) return;
+    if (a === 'liked') {
+      haptic();
+      if (liked && !liked.length) toast(`You haven’t liked any songs by ${artist.name} yet`);
+      else go(`artistliked/${id}`);
+      return;
+    }
+    if (a !== 'play' && a !== 'shuffle') return;
     haptic();
     if (a === 'play' && isCurrent()) player.toggle(); // the big button pauses / resumes this artist
     else player.playContext(artist.uri, { shuffle: a === 'shuffle' });
   });
-
-  likedEl.addEventListener('click', e => {
-    if (e.target.closest('[data-a="more"]')) { showAll = !showAll; renderLiked(); }
-  });
-  // play through your liked songs by them, starting from the one you tapped
-  wireTracks(likedEl, () => liked, i => player.playUris(liked, i));
 
   body.addEventListener('click', e => {
     const c = e.target.closest('.card');
@@ -672,6 +688,69 @@ function artistView(id) {
     e.preventDefault();
     itemActions((c.parentElement.dataset.k === 'albums' ? albums : singles)[Number(c.dataset.i)]);
   });
+
+  load();
+  return { el: v };
+}
+
+/* ───────── Your liked songs by one artist (the heart on their page) ───────── */
+function artistLikedView(id) {
+  const v = el(`<div class="view coll has-topbar">
+    <div class="topbar"><button class="icon-btn back" aria-label="Back">${icon('chevLeft')}</button><div class="topbar-title">Liked songs</div><span class="topbar-gap"></span></div>
+    <div class="ch">
+      <div class="ch-bg"></div>
+      <div class="ch-top"><div class="al-art"><div class="ch-art round sk"></div></div><div class="ch-info"><div class="sk sk-line" style="width:40%"></div>
+        <div class="sk sk-line" style="width:75%;height:24px;margin-top:10px"></div></div></div>
+      <div class="ch-actions"></div>
+    </div>
+    <div class="tracklist">${skRows(6)}</div></div>`);
+  wireTopbar(v, 200);
+  const head = $('.ch', v), list = $('.tracklist', v);
+  let tracks = [];
+
+  async function load() {
+    let artist;
+    try { [artist, tracks] = await Promise.all([sp.artist(id), likedByArtist(id)]); } catch (e) {
+      $('.ch-top', v).innerHTML = '';
+      list.innerHTML = errorBox(e.message);
+      list.querySelector('[data-retry]').onclick = () => { list.innerHTML = skRows(6); load(); };
+      return;
+    }
+    const img = artist.imageLarge || artist.image;
+    $('.ch-bg', v).innerHTML = img ? `<img src="${esc(img)}" alt="">` : '<div class="liked-bg"></div>';
+    $('.al-art', v).innerHTML = art(img, 'ch-art round', 'artist') + `<span class="al-badge">${icon('heartFill')}</span>`;
+    $('.ch-info', v).innerHTML = `<div class="ch-kind">Liked songs</div><h1>${esc(artist.name)}</h1>`
+      + `<div class="ch-meta">${tracks.length} song${tracks.length === 1 ? '' : 's'} you’ve liked</div>`;
+    $('.ch-actions', v).innerHTML = `<button class="ch-play" data-a="play" aria-label="Play">${icon('play')}</button>`
+      + `<button class="icon-btn" data-a="shuffle" aria-label="Shuffle">${icon('shuffle')}</button>`;
+    $('.topbar-title', v).textContent = `Liked · ${artist.name}`;
+    list.innerHTML = tracks.map((t, i) => trackRow(t, i)).join('') || '<div class="empty">No liked songs by them yet.</div>';
+    markPlaying(list);
+    paintPlay();
+  }
+
+  // these play as a plain list of songs, so "current" = one of them is playing without a playlist / album
+  const isCurrent = () => !!player.track && !player.pb?.context && tracks.some(t => t.uri === player.track.uri);
+  function paintPlay() {
+    const b = $('.ch-play', head);
+    if (!b) return;
+    const on = isCurrent() && player.playing;
+    setIcon(b, on ? 'pause' : 'play');
+    b.setAttribute('aria-label', on ? 'Pause' : 'Play');
+  }
+  player.on(type => { if (v.isConnected && (type === 'state' || type === 'track' || type === 'context')) paintPlay(); });
+
+  head.addEventListener('click', e => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    if (!a || !tracks.length) return;
+    haptic();
+    if (a === 'play' && isCurrent()) { player.toggle(); return; }
+    if (a === 'play') { player.playUris(tracks, 0); return; }
+    const mixed = tracks.slice();
+    for (let i = mixed.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [mixed[i], mixed[j]] = [mixed[j], mixed[i]]; }
+    player.playUris(mixed, 0);
+  });
+  wireTracks(list, () => tracks, i => player.playUris(tracks, i));
 
   load();
   return { el: v };

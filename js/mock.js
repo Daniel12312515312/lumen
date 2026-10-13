@@ -227,6 +227,7 @@ export function createMock() {
     async albumTracks(id, o) { await lag(); return pg(D.albums.find(x => x.id === id).tracks, o); },
     async artist(id) { await lag(); return D.artists.find(x => x.id === id); },
     async artistAlbums(id, group) { await lag(); return group === 'album' ? D.albums.filter(a => a.artists[0].id === id) : []; },
+    async artistTop(id) { await lag(); return Object.values(D.tracks).filter(t => t.artists.some(a => a.id === id)).slice(0, 10); },
     async search(q, offset = 0) {
       await lag();
       q = q.toLowerCase();

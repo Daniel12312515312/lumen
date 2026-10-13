@@ -1,9 +1,10 @@
 // Real Spotify Web API client (follows the Feb-2026 Development Mode endpoint set).
 import { auth } from './auth.js';
-import { sleep } from './util.js';
+import { sleep, store } from './util.js';
 import * as N from './normalize.js';
 
 const BASE = 'https://api.spotify.com/v1';
+const NO_TOP = 'lumen.noTopTracks'; // when Spotify refused "top tracks" (checked again after a week)
 let backoffUntil = 0;
 
 export class ApiError extends Error {
@@ -134,6 +135,38 @@ export const spotify = {
   async artistAlbums(id, group) {
     const d = await req('GET', `/artists/${id}/albums`, { query: { include_groups: group, limit: 10 } });
     return (d?.items || []).map(N.nAlbum);
+  },
+  /**
+   * An artist's popular songs. Spotify took "top tracks" away from apps like this one in 2026,
+   * so if it's refused, the list comes from Spotify's own search ranking for the artist
+   * (most-played first), keeping only their songs and one version of each.
+   */
+  async artistTop(id, name) {
+    const off = store(NO_TOP);
+    if (!off || Date.now() - off > 7 * 864e5) {
+      try {
+        const d = await req('GET', `/artists/${id}/top-tracks`);
+        return (d?.tracks || []).filter(Boolean).map(t => N.nTrack(t));
+      } catch (e) {
+        if (e.status !== 403 && e.status !== 404) throw e;
+        store(NO_TOP, Date.now());
+      }
+    }
+    const q = `artist:"${name.replace(/"/g, '')}"`;
+    const pages = await Promise.all([0, 10].map(offset => req('GET', '/search', { query: { q, type: 'track', limit: 10, offset } }).catch(() => null)));
+    const seen = new Set(), out = [];
+    for (const d of pages) {
+      for (const raw of d?.tracks?.items || []) {
+        if (!raw) continue;
+        const t = N.nTrack(raw);
+        if (!t.artists.some(a => a.id === id)) continue;
+        const key = t.name.toLowerCase().replace(/\s+-\s+.*$|\s*[([].*$/, '').trim(); // "Song - Remastered" = "Song (Live)" = "Song"
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(t);
+      }
+    }
+    return out.slice(0, 10);
   },
 
   async search(q, offset = 0, type = 'track,artist,album,playlist') {
