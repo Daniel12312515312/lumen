@@ -1,8 +1,8 @@
 {
-    "versionCode":  4,
-    "versionName":  "1.3.0",
-    "url":  "https://daniel12312515312.github.io/lumen/widget/lumen-widget-1.3.0.apk",
-    "sha256":  "39ddfaf97b7c6dc3693409c4589bd68967ef87f4d9ad408d99d5e343f840f89c",
-    "size":  1629307,
-    "notes":  "פונט הטלפון וזכוכית כמו ב-Island. כשכלום לא מתנגן, הווידג\u0027ט מציג את השיר האחרון עם הבר במקום שבו עצרת."
+    "versionCode":  5,
+    "versionName":  "1.3.1",
+    "url":  "https://daniel12312515312.github.io/lumen/widget/lumen-widget-1.3.1.apk",
+    "sha256":  "daf3813b0c326eeb5f14a9acb77ed85785299837c8e8656d153926e7e603ceba",
+    "size":  1629527,
+    "notes":  "פינות עגולות יותר וקו אור אחד נקי מסביב לווידג\u0027ט, גם בפינות."
 }
