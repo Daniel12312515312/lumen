@@ -1,8 +1,8 @@
 {
-    "versionCode":  7,
-    "versionName":  "0.7.0",
-    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.7.0.apk",
-    "sha256":  "63d779aaa2e51d10292fe29ecfbb71ac89083a994e009036083c71fbb320c108",
-    "size":  17170391,
-    "notes":  "בחירת כיבוי אוטומטי מיידית (גם לפני ההתחלה), מחוון מחליק במקום כפתורים, וזמן מותאם."
+    "versionCode":  8,
+    "versionName":  "0.8.0",
+    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.8.0.apk",
+    "sha256":  "eae49958f93e6491515721896d5b3fb7dbc347f0112c64c7623fca77ff04c272",
+    "size":  17153955,
+    "notes":  "כיבוי אוטומטי: כבוי / מופעל, וסרגל שגוררים ימינה ושמאלה לקבוע את הזמן. בלי כפתורי זמן מוגדרים מראש."
 }
