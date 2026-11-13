@@ -1,8 +1,8 @@
 {
-    "versionCode":  9,
-    "versionName":  "0.9.0",
-    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.9.0.apk",
-    "sha256":  "c4e5d67f496bde8f84bcd8c6b362917bcbde70940ac33d1077fc027f26d0997b",
-    "size":  17153955,
-    "notes":  "כיבוי אוטומטי: סרגל נפרד לשעות וסרגל נפרד לדקות, גרירה קלה יותר עם רטט על כל צעד."
+    "versionCode":  10,
+    "versionName":  "0.10.0",
+    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.10.0.apk",
+    "sha256":  "01f8231a3af398c8084dd3bbb0335092f6cba5f7ddc931f53f76a1871e59c58a",
+    "size":  17153959,
+    "notes":  "סרגלי השעות והדקות מסודרים אחד מעל השני, כל אחד ברוחב מלא."
 }
