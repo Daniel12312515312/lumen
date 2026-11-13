@@ -1,8 +1,8 @@
 {
-    "versionCode":  5,
-    "versionName":  "0.5.0",
-    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.5.0.apk",
-    "sha256":  "1ed03d4df89ee12ba0daefabe15630994f699a8f53aed92efa13f560a95b51db",
-    "size":  17137571,
-    "notes":  "סימולציית מסלול (הליכה / אופניים / רכב), כיבוי אוטומטי, ומסך חיישני מיקום בזמן אמת."
+    "versionCode":  6,
+    "versionName":  "0.6.0",
+    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.6.0.apk",
+    "sha256":  "fa27cb48829da6bdde0bfa59abc620cef6894606320ac75ee9ac07ab5540d353",
+    "size":  17154007,
+    "notes":  "תיקון בחירת כיבוי אוטומטי (צבעים ברורים, הבחירה מגיעה מהשירות) ואפשרות לזמן מותאם: שעות ודקות."
 }
