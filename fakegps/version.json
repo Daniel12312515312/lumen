@@ -1,8 +1,8 @@
 {
-    "versionCode":  10,
-    "versionName":  "0.10.0",
-    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.10.0.apk",
-    "sha256":  "01f8231a3af398c8084dd3bbb0335092f6cba5f7ddc931f53f76a1871e59c58a",
-    "size":  17153959,
-    "notes":  "סרגלי השעות והדקות מסודרים אחד מעל השני, כל אחד ברוחב מלא."
+    "versionCode":  11,
+    "versionName":  "0.11.0",
+    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.11.0.apk",
+    "sha256":  "56055b6974ce09f53b541824f7890fe791fff7d9e05b14c94f3eacdba6e27e19",
+    "size":  17170343,
+    "notes":  "יומן פעילות: הפעלות, מסלולים, הגעה ליעד, כיבוי אוטומטי, כיבוי ושגיאות, עם תאריך ושעה. כפתור חדש בצד המפה."
 }
