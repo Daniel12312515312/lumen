@@ -1,8 +1,8 @@
 {
-    "versionCode":  3,
-    "versionName":  "0.3.0",
-    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.3.0.apk",
-    "sha256":  "6ba4d7e46d0b0d1a93f749a4d0d2c5450c1a0e07f64af5c3d6c7cc3e9ada7181",
-    "size":  2751708,
-    "notes":  "כפתור שמוביל ישר להגדרת המיקום המדומה, ועדכונים מתוך האפליקציה."
+    "versionCode":  4,
+    "versionName":  "0.4.0",
+    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.4.0.apk",
+    "sha256":  "addc217d6f059441ae348592a1f7232863eb27751fe5da41b7a96ac6251c2c0a",
+    "size":  17055651,
+    "notes":  "מפה חדשה וחדה עם עסקים ובתי ספר, לחיצה ארוכה מעבירה מיד, ובדיקה שאפליקציות אחרות רואות את המיקום."
 }
