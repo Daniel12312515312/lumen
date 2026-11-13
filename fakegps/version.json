@@ -1,8 +1,8 @@
 {
-    "versionCode":  4,
-    "versionName":  "0.4.0",
-    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.4.0.apk",
-    "sha256":  "addc217d6f059441ae348592a1f7232863eb27751fe5da41b7a96ac6251c2c0a",
-    "size":  17055651,
-    "notes":  "מפה חדשה וחדה עם עסקים ובתי ספר, לחיצה ארוכה מעבירה מיד, ובדיקה שאפליקציות אחרות רואות את המיקום."
+    "versionCode":  5,
+    "versionName":  "0.5.0",
+    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.5.0.apk",
+    "sha256":  "1ed03d4df89ee12ba0daefabe15630994f699a8f53aed92efa13f560a95b51db",
+    "size":  17137571,
+    "notes":  "סימולציית מסלול (הליכה / אופניים / רכב), כיבוי אוטומטי, ומסך חיישני מיקום בזמן אמת."
 }
