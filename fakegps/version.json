@@ -1,8 +1,8 @@
 {
-    "versionCode":  12,
-    "versionName":  "0.12.0",
-    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.12.0.apk",
-    "sha256":  "e5aadde05d14e68364065cfa13510a5efe8aaf4c25086ffae205d0291a3d705b",
-    "size":  17160313,
-    "notes":  "עיצוב חדש לכל האפליקציה: מפת לילה סגולה עם כפתור מעבר למפה בהירה, כרטיסים קומפקטיים (הטיימר והמהירות נפתחים בלחיצה), סיכה ונקודה חיה חדשות, מסלול בצבעים שמתקדם איתך, ואייקון חדש."
+    "versionCode":  13,
+    "versionName":  "0.13.0",
+    "url":  "https://daniel12312515312.github.io/lumen/fakegps/fakegps-0.13.0.apk",
+    "sha256":  "f4c51002b3d8b9b8fbb7a053826aef75eaef99f7db932f1e1f6a6f6a3d02cfbc",
+    "size":  17160317,
+    "notes":  "חדש: חץ על הנקודה במפה. מניפה טורקיז מראה לאן הטלפון שלך מסתכל (לפי המצפן), וחץ סגול מראה לאיזה כיוון אתה נע במסלול."
 }
